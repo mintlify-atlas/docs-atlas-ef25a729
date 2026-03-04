@@ -1,0 +1,150 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Beads",
+  "projectDescription": "Distributed, git-backed graph issue tracker for AI agents with persistent memory and dependency tracking",
+  "theme": "aspen",
+  "primaryColor": "#6366f1",
+  "lightColor": "#818cf8",
+  "darkColor": "#4f46e5",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/dependencies",
+              "concepts/workflows",
+              "concepts/memory"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/agent-workflow",
+              "guides/contributor-mode",
+              "guides/stealth-mode",
+              "guides/sync-and-backup",
+              "guides/molecules"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/claude",
+              "integrations/copilot",
+              "integrations/aider",
+              "integrations/mcp"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "cli/overview",
+              "cli/create",
+              "cli/update",
+              "cli/ready",
+              "cli/dep",
+              "cli/show",
+              "cli/list",
+              "cli/close"
+            ]
+          },
+          {
+            "group": "Advanced Commands",
+            "pages": [
+              "cli/compact",
+              "cli/graph",
+              "cli/dolt",
+              "cli/doctor",
+              "cli/backup"
+            ]
+          },
+          {
+            "group": "Memory Commands",
+            "pages": [
+              "cli/remember",
+              "cli/memories",
+              "cli/recall",
+              "cli/forget"
+            ]
+          },
+          {
+            "group": "Molecule Commands",
+            "pages": [
+              "cli/mol-seed",
+              "cli/mol-bond",
+              "cli/mol-current",
+              "cli/mol-distill"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Additional Info",
+            "pages": [
+              "resources/faq",
+              "resources/troubleshooting",
+              "resources/community-tools",
+              "resources/contributing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Dolt-powered version-controlled SQL database with cell-level merge",
+    "Hash-based IDs prevent merge collisions in multi-agent workflows",
+    "Dependency tracking with auto-ready task detection",
+    "Persistent agent memory across sessions",
+    "Semantic memory compaction to save context window",
+    "Message threading with ephemeral lifecycle",
+    "Graph links for knowledge graphs (relates_to, duplicates, supersedes)",
+    "Contributor and stealth modes for flexible workflows"
+  ],
+  "publicApiSurface": [
+    "bd init",
+    "bd create",
+    "bd update",
+    "bd ready",
+    "bd show",
+    "bd list",
+    "bd close",
+    "bd dep add",
+    "bd dep rm",
+    "bd dep blocks",
+    "bd dep tree",
+    "bd graph",
+    "bd compact",
+    "bd dolt",
+    "bd doctor",
+    "bd backup",
+    "bd remember",
+    "bd memories",
+    "bd recall",
+    "bd forget",
+    "bd mol seed",
+    "bd mol bond",
+    "bd mol current",
+    "bd mol distill"
+  ]
+}
