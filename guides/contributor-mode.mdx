@@ -1,0 +1,333 @@
+---
+title: Contributor mode
+description: Route planning issues to a separate repo when working on forked projects
+---
+
+Contributor mode solves a unique problem: when you fork a project that uses Beads, your personal planning issues can pollute PRs. Contributor mode automatically routes your issues to a separate planning repository.
+
+## The problem
+
+When you fork and contribute to a Beads-using project:
+
+```bash
+# You fork beads and clone it
+git clone https://github.com/your-fork/beads.git
+cd beads
+
+# You create a personal planning issue
+bd create "Fix tests before lunch" -t task -p 2
+
+# Later, you create a PR
+git add .
+git commit -m "Fix bug"
+git push origin feature-branch
+```
+
+Your PR now includes `.beads/` changes with your personal planning issue. This causes:
+
+- **Noise in diffs**: Reviewers see unrelated issue database changes
+- **Merge conflicts**: Your issues conflict with upstream issue changes
+- **Privacy leakage**: Your work habits and notes become public
+
+## How contributor mode works
+
+Contributor mode automatically detects your role and routes issues accordingly:
+
+- **Maintainer** (SSH access): Issues go to `./.beads/` (project database)
+- **Contributor** (HTTPS fork): Issues go to `~/.beads-planning/` (personal database)
+
+<Note>Role detection is automatic based on git remote URL. SSH access implies write permissions (maintainer), HTTPS without credentials implies fork (contributor).</Note>
+
+## Setting up contributor mode
+
+<Steps>
+  <Step title="Run the setup wizard">
+    Navigate to your forked project and run:
+    
+    ```bash
+    cd your-forked-project
+    bd init --contributor
+    ```
+    
+    This:
+    - Creates `~/.beads-planning/` with its own database
+    - Configures `routing.mode=auto`
+    - Configures `routing.contributor=~/.beads-planning`
+  </Step>
+
+  <Step title="Verify configuration">
+    Check that routing is enabled:
+    
+    ```bash
+    bd config get routing.mode         # → auto
+    bd config get routing.contributor  # → ~/.beads-planning
+    ```
+  </Step>
+
+  <Step title="Create a test issue">
+    Verify issues route to planning repo:
+    
+    ```bash
+    bd create "Test planning issue" -t task -p 2 --json
+    ```
+    
+    Check that the issue appears in planning repo, not project repo:
+    
+    ```bash
+    # Check planning repo
+    ls ~/.beads-planning/.beads/  # Should exist
+    
+    # Check project repo (should be unchanged)
+    git status  # .beads/ should NOT show changes
+    ```
+  </Step>
+</Steps>
+
+## Role detection
+
+Beads auto-detects your role using this algorithm:
+
+1. **Check explicit override**: `git config beads.role`
+   - If set to `maintainer` → Maintainer
+   - If set to `contributor` → Contributor
+
+2. **Check push URL**: `git remote get-url --push origin`
+   - Starts with `git@` or `ssh://` → Maintainer
+   - Contains `@` (credentials) → Maintainer  
+   - HTTPS without credentials → Contributor
+
+3. **Default**: Contributor (safe fallback)
+
+<Tip>The algorithm prioritizes safety: when in doubt, route to personal database to avoid accidental pollution.</Tip>
+
+### Explicit role override
+
+For CI environments or shared machines, set explicit role:
+
+```bash
+# Force maintainer mode
+git config beads.role maintainer
+
+# Force contributor mode
+git config beads.role contributor
+
+# Check current role
+git config beads.role
+```
+
+## Using contributor mode
+
+### Creating issues
+
+Issues automatically route to planning repo:
+
+```bash
+# This goes to ~/.beads-planning/
+bd create "Fix my local tests" -t task -p 2
+bd create "Remember to update docs" -t task -p 3
+```
+
+### Viewing issues
+
+By default, commands show issues from both repos:
+
+```bash
+# Shows planning repo issues
+bd list --json
+
+# Show only planning repo
+BEADS_DIR=~/.beads-planning bd list --json
+
+# Show only project repo
+BEADS_DIR=./.beads bd list --json
+```
+
+### Graduating issues to project repo
+
+When a personal issue becomes a project issue:
+
+```bash
+# Create in project repo explicitly
+BEADS_DIR=./.beads bd create "Found a bug in auth" -t bug -p 0
+
+# Or copy from planning to project
+bd export bd-plan-42 | BEADS_DIR=./.beads bd import -
+```
+
+<Warning>Issues promoted to the project repo WILL appear in PRs. Only promote issues that belong in the upstream project.</Warning>
+
+## Configuration
+
+### Routing modes
+
+The `routing.mode` config controls routing behavior:
+
+- `auto`: Automatic routing based on role detection (recommended)
+- `explicit`: No routing, use project repo only
+- *(empty)*: Routing disabled
+
+```bash
+# Enable auto-routing
+bd config set routing.mode auto
+
+# Disable routing
+bd config set routing.mode explicit
+
+# Check current mode
+bd config get routing.mode
+```
+
+### Planning repo location
+
+Customize where planning issues go:
+
+```bash
+# Default location
+bd config get routing.contributor  # → ~/.beads-planning
+
+# Use custom location
+bd config set routing.contributor ~/my-beads-planning
+
+# Re-initialize planning repo at new location
+bd init --contributor
+```
+
+### Planning repo prefix
+
+Planning repo can use a different prefix:
+
+```bash
+cd ~/.beads-planning
+bd config set db.prefix plan  # Use "plan-" prefix
+cd -  # Return to project repo
+
+# Now planning issues are plan-a3f8, plan-b7c2, etc.
+```
+
+## Troubleshooting
+
+### Issues still appearing in project repo
+
+**Diagnosis**:
+
+```bash
+# Check routing config
+bd config get routing.mode
+bd config get routing.contributor
+
+# Check detected role
+git config beads.role  # If set, overrides detection
+git remote get-url --push origin
+```
+
+**Solutions**:
+
+1. Verify `routing.mode` is `auto`
+2. Verify `routing.contributor` points to planning repo
+3. Check that `BEADS_DIR` is NOT set (it overrides routing)
+4. If using SSH URL but want contributor behavior, set `git config beads.role contributor`
+
+### BEADS_DIR conflicts with routing
+
+**Symptom**: Warning about BEADS_DIR overriding routing
+
+**Explanation**: `BEADS_DIR` environment variable takes precedence over routing config.
+
+**Solutions**:
+
+```bash
+# Option 1: Unset BEADS_DIR
+unset BEADS_DIR
+
+# Option 2: Keep BEADS_DIR (routing will be ignored)
+# BEADS_DIR will be used as-is
+
+# Option 3: Use explicit --repo flag
+bd create "task" -p 1 --repo ~/.beads-planning
+```
+
+### Planning repo not initialized
+
+**Symptom**: Error "failed to initialize target repo"
+
+**Diagnosis**:
+
+```bash
+ls -la ~/.beads-planning/.beads/  # Should exist
+```
+
+**Solution**:
+
+```bash
+# Reinitialize planning repo
+bd init --contributor
+```
+
+### CI environment detection issues
+
+**Problem**: CI typically uses HTTPS even for maintainers, causing incorrect detection.
+
+**Solution**: Set explicit role in CI config:
+
+```yaml
+# .github/workflows/ci.yml
+env:
+  GIT_CONFIG_COUNT: 1
+  GIT_CONFIG_KEY_0: beads.role
+  GIT_CONFIG_VALUE_0: maintainer
+
+steps:
+  - run: bd create "CI issue" -p 0
+```
+
+## Contributor vs maintainer comparison
+
+| Aspect | Contributor Mode | Maintainer Mode |
+|--------|------------------|------------------|
+| **Issues created** | `~/.beads-planning/` | `./.beads/` |
+| **PR pollution** | No | Yes (intentional) |
+| **Sync behavior** | Independent | Project repo |
+| **Role detection** | HTTPS fork | SSH or explicit |
+| **Use case** | Personal planning | Project work |
+
+## Sync and backup
+
+The planning repo has its own sync configuration:
+
+```bash
+# Set up planning repo remote
+cd ~/.beads-planning
+git init
+git remote add origin https://github.com/you/my-planning.git
+git add .beads/
+git commit -m "Initial planning repo"
+git push -u origin main
+cd -
+
+# Now planning issues sync separately
+bd dolt push  # (in planning repo)
+```
+
+<Info>Planning repo does NOT inherit the project repo's sync configuration. It's completely independent.</Info>
+
+## Best practices
+
+### For contributors
+
+- ✅ Run `bd init --contributor` immediately after cloning
+- ✅ Verify routing with a test issue before creating real issues
+- ✅ Check `git status` before creating PRs to avoid pollution
+- ✅ Use explicit role override in CI environments
+
+### For maintainers
+
+- ✅ Document contributor mode setup in project README
+- ✅ Set up `.gitignore` for contributor prefixes (if using prefix-based routing)
+- ✅ Review PRs for accidental `.beads/` pollution
+- ✅ Use `bd preflight` to detect pollution (when available)
+
+## See also
+
+- [Stealth mode](/guides/stealth-mode) - Local-only Beads without git integration
+- [Sync and backup](/guides/sync-and-backup) - Dolt push/pull workflows
+- [CLI Reference](/cli/overview) - Complete command reference

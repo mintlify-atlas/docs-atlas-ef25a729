@@ -1,0 +1,264 @@
+---
+title: "bd recall"
+description: "Retrieve the full content of a specific memory by key"
+---
+
+## Overview
+
+The `bd recall` command retrieves the complete content of a stored memory by its key. Unlike `bd memories` which truncates long content, `recall` shows everything.
+
+**Added in:** v0.58.0
+
+## Syntax
+
+```bash
+bd recall <key>
+```
+
+## Arguments
+
+<ParamField path="key" type="string" required>
+  The exact key of the memory to retrieve. Keys are case-sensitive.
+</ParamField>
+
+## How It Works
+
+The command queries the key-value store for the entry matching `kv.memory.<key>` and returns the full content without truncation. This is useful for:
+
+- Reading long, multi-line memories
+- Copying content for reference
+- Verifying exact stored text
+- Piping to other commands
+
+## Examples
+
+### Basic Recall
+
+Retrieve a simple memory:
+
+```bash
+bd recall test-race
+```
+
+Output:
+```
+always run tests with -race flag to catch concurrency bugs
+```
+
+### Multi-line Memory
+
+Recall complex, structured information:
+
+```bash
+bd recall auth-jwt
+```
+
+Output:
+```
+Auth module uses JWT not sessions.
+Token expiry is 24h.
+Refresh tokens stored in Redis.
+Refresh endpoint: POST /api/v1/auth/refresh
+Requires: Bearer token in Authorization header
+```
+
+### Long Content
+
+Get full text that was truncated in `bd memories`:
+
+```bash
+bd recall deployment-checklist
+```
+
+Output:
+```
+Pre-deployment checklist:
+1. Run full test suite with race detector
+2. Update CHANGELOG.md with new version
+3. Run bd doctor to check for issues
+4. Tag release in git: git tag v1.2.3
+5. Push tags: git push --tags
+6. Verify CI passes on tag
+7. Run deploy script: ./scripts/deploy.sh production
+8. Monitor logs for 10 minutes
+9. Check health endpoint: curl https://api.example.com/health
+10. Update status page if needed
+```
+
+### Memory Doesn't Exist
+
+When the key is not found:
+
+```bash
+bd recall nonexistent-key
+```
+
+Output (stderr):
+```
+No memory with key "nonexistent-key"
+```
+
+Exit code: 1
+
+## JSON Output
+
+For programmatic use, add `--json`:
+
+```bash
+bd recall auth-jwt --json
+```
+
+Success output:
+```json
+{
+  "key": "auth-jwt",
+  "value": "Auth module uses JWT not sessions.\nToken expiry is 24h.\nRefresh tokens stored in Redis.",
+  "found": true
+}
+```
+
+Not found output:
+```json
+{
+  "key": "nonexistent-key",
+  "value": "",
+  "found": false
+}
+```
+
+Exit code: 1 when not found, 0 when found.
+
+## Use Cases
+
+### Copy to Clipboard
+
+On macOS:
+```bash
+bd recall api-staging | pbcopy
+```
+
+On Linux:
+```bash
+bd recall api-staging | xclip -selection clipboard
+```
+
+### Use in Scripts
+
+Extract configuration from memories:
+
+```bash
+#!/bin/bash
+S3_BUCKET=$(bd recall s3-staging)
+aws s3 ls "$S3_BUCKET"
+```
+
+### Verify Memory Content
+
+Check exact wording before updating:
+
+```bash
+# See what's currently stored
+bd recall deploy-checklist
+
+# Update if needed
+bd remember "$(bd recall deploy-checklist)
+New step: Notify team in Slack" --key deploy-checklist
+```
+
+### Pipe to Editor
+
+Edit long memories:
+
+```bash
+bd recall deployment-checklist > /tmp/checklist.txt
+$EDITOR /tmp/checklist.txt
+bd remember "$(cat /tmp/checklist.txt)" --key deployment-checklist
+```
+
+### Compare Versions
+
+If you're tracking similar info in git:
+
+```bash
+bd recall deployment-notes > /tmp/bd-notes.txt
+cat docs/DEPLOYMENT.md > /tmp/doc-notes.txt
+diff /tmp/bd-notes.txt /tmp/doc-notes.txt
+```
+
+### Agent Context Retrieval
+
+AI agents can fetch specific knowledge:
+
+```bash
+# Agent discovers it needs to know about auth
+bd recall auth-jwt
+# Gets full details to inform implementation
+```
+
+## Finding Keys
+
+If you don't know the exact key:
+
+```bash
+# Search first
+bd memories auth
+# Output shows: auth-jwt, auth-config, etc.
+
+# Then recall the right one
+bd recall auth-jwt
+```
+
+Or use JSON for parsing:
+
+```bash
+bd memories auth --json | jq 'keys[]'
+# Lists all keys matching "auth"
+```
+
+## Exit Codes
+
+- **0**: Memory found and retrieved successfully
+- **1**: Memory key not found
+
+This makes it easy to check in scripts:
+
+```bash
+if bd recall staging-api-key >/dev/null 2>&1; then
+  echo "Found staging API key"
+else
+  echo "No staging API key stored"
+  bd remember "abc123xyz" --key staging-api-key
+fi
+```
+
+## Related Commands
+
+- [`bd memories`](/cli/memories) - List all memories or search by keyword
+- [`bd remember`](/cli/remember) - Store or update a memory
+- [`bd forget`](/cli/forget) - Delete a memory
+
+## Tips
+
+<Tip>
+  Use `bd recall` when you need the full, untruncated content. Use `bd memories <search>` when you're browsing or don't know the exact key.
+</Tip>
+
+<Tip>
+  Pipe output to tools:
+  ```bash
+  bd recall code-style | less  # Page through long content
+  bd recall api-endpoints | grep POST  # Search within memory
+  bd recall config --json | jq -r .value  # Extract value only
+  ```
+</Tip>
+
+<Note>
+  Keys are case-sensitive. `bd recall Auth-JWT` won't find `auth-jwt`. Use `bd memories` to find the correct key if unsure.
+</Note>
+
+<Warning>
+  Output goes to stdout. Error messages go to stderr. This allows safe piping:
+  ```bash
+  config=$(bd recall my-config)  # Works even if not found (empty string)
+  ```
+</Warning>

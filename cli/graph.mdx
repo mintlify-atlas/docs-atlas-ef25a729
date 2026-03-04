@@ -1,0 +1,298 @@
+---
+title: bd graph
+description: Visualize issue dependency graphs
+---
+
+## Overview
+
+Display a visualization of issue dependency graphs. Shows execution order, blocking relationships, and parallel work opportunities.
+
+## Syntax
+
+```bash
+bd graph [issue-id] [flags]
+```
+
+## Display Formats
+
+### Default: Terminal DAG
+
+Box-drawing characters with columns showing execution order:
+
+```bash
+bd graph issue-id
+```
+
+### Box Format
+
+ASCII boxes grouped by layer:
+
+```bash
+bd graph --box issue-id
+```
+
+### Compact Format
+
+Tree format, one line per issue, most scannable:
+
+```bash
+bd graph --compact issue-id
+```
+
+### Graphviz DOT
+
+Export to DOT format for rendering with Graphviz:
+
+```bash
+bd graph --dot issue-id | dot -Tsvg > graph.svg
+bd graph --dot issue-id | dot -Tpng > graph.png
+```
+
+### Interactive HTML
+
+Self-contained HTML with D3.js visualization:
+
+```bash
+bd graph --html issue-id > graph.html
+bd graph --all --html > all.html       # All issues, interactive
+```
+
+## Graph Interpretation
+
+### Execution Order
+
+The graph shows topological ordering:
+
+- **Layer 0 / Leftmost**: No dependencies, can start immediately
+- **Higher layers**: Depend on lower layers
+- **Same layer**: Can run in parallel
+
+### Status Icons
+
+Icons indicate issue state:
+
+- `○` open
+- `◐` in_progress
+- `●` blocked
+- `✓` closed
+- `❄` deferred
+
+### Relationships
+
+The graph shows:
+
+- **Blocking dependencies**: Arrows from blocker to blocked
+- **Parent-child**: Epic/subtask hierarchies
+- **Connected components**: Issues grouped by dependency relationships
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--all` | Show graph for all open issues |
+| `--compact` | Tree format, one line per issue |
+| `--box` | ASCII boxes showing layers |
+| `--dot` | Graphviz DOT format |
+| `--html` | Self-contained interactive HTML |
+| `--json` | Output JSON format |
+
+## Examples
+
+### Visualize Epic Dependencies
+
+For an epic with multiple subtasks:
+
+```bash
+bd graph epic-123
+```
+
+Output:
+```
+📊 Dependency graph for epic-123:
+
+  Status: ○ open  ◐ in_progress  ● blocked  ✓ closed
+
+  Layer 0 (ready)
+  ├── ○ epic-124  P1  Design authentication system
+  │   ├── ○ task-125  P1  Research OAuth providers
+  │   └── ○ task-126  P2  Design token storage
+  └── ○ task-127  P1  Update documentation
+
+  Layer 1
+  └── ● epic-128  P1  Implement authentication
+          needs:1
+
+  Total: 5 issues across 2 layers
+  Dependencies: 1 blocking relationships
+```
+
+### View All Open Issues
+
+See connected components of all open work:
+
+```bash
+bd graph --all
+```
+
+Shows separate subgraphs for disconnected work.
+
+### Generate SVG Diagram
+
+Create a visual diagram for documentation:
+
+```bash
+bd graph epic-123 --dot | dot -Tsvg > architecture.svg
+```
+
+### Interactive Browser View
+
+Create interactive HTML with zoom and pan:
+
+```bash
+bd graph --all --html > project-status.html
+open project-status.html
+```
+
+### Compact Tree View
+
+Quick scannable overview:
+
+```bash
+bd graph --compact epic-123
+```
+
+Output:
+```
+📊 Dependency graph for epic-123 (5 issues, 2 layers)
+
+  Status: ○ open  ◐ in_progress  ● blocked  ✓ closed  ❄ deferred
+
+  LAYER 0 (ready)
+  ├── ○ epic-124 ● P1 Design authentication system
+  │   ├── ○ task-125 ● P1 Research OAuth providers
+  │   └── ○ task-126 ● P2 Design token storage
+  └── ○ task-127 ● P1 Update documentation
+
+  LAYER 1
+  └── ● epic-128 ● P1 Implement authentication
+```
+
+### Check for Parallel Work
+
+Identify tasks that can run simultaneously:
+
+```bash
+bd graph --box epic-123
+```
+
+Issues in Layer 0 can all start immediately. Issues in the same higher layer can run in parallel once their dependencies complete.
+
+## When to Use Graph
+
+Use `bd graph` when:
+
+- **Planning work**: Identify parallel work opportunities
+- **Understanding blockers**: See what's blocking critical work
+- **Reviewing epic scope**: Visualize all subtasks and dependencies
+- **Communicating status**: Share visual diagrams with stakeholders
+- **Finding ready work**: Layer 0 shows unblocked tasks
+
+## Graph Types
+
+### Single Issue Mode
+
+For a specific issue:
+
+- Shows the issue and all connected issues
+- Traverses both directions (dependencies AND dependents)
+- Includes all dependency types (blocks, parent-child, related)
+
+### All Issues Mode (--all)
+
+For all open issues:
+
+- Groups issues by connected components
+- Shows multiple subgraphs if work is disconnected
+- Sorted by size (largest first) and priority
+- Each component chooses best "root" (epics preferred)
+
+## Understanding Layers
+
+### Layer Assignment
+
+Layers are computed using topological sort:
+
+1. **Layer 0**: Issues with no blocking dependencies
+2. **Layer N**: Issues that depend on Layer N-1
+3. **Parent-child lifting**: Children appear in same layer as blocked parent
+
+### Parallel Work Detection
+
+Issues in the same layer:
+
+- Have no dependencies between them
+- Can be worked on simultaneously
+- May still share a common parent (epic)
+
+### Critical Path
+
+The longest path from Layer 0 to completion:
+
+- Determines minimum project duration
+- Issues on this path are bottlenecks
+- Prioritize resolving blockers on critical path
+
+## Troubleshooting
+
+### "Issue not found"
+
+**Cause**: Invalid issue ID
+
+**Solution**: Verify ID with `bd list` or `bd show <id>`
+
+### Graph is empty
+
+**Cause**: Issue has no dependencies or dependents
+
+**Solution**: 
+- This is normal for independent issues
+- Use `--all` to see other work
+- Add dependencies with `bd deps add`
+
+### Too many issues in --all mode
+
+**Cause**: Large project with many open issues
+
+**Solution**:
+- Filter to specific epic: `bd graph epic-id`
+- Use `--compact` for more scannable output
+- Use `--html` for interactive exploration
+
+### Graphviz command not found
+
+**Cause**: Graphviz not installed
+
+**Solution**: Install with package manager:
+```bash
+# macOS
+brew install graphviz
+
+# Ubuntu/Debian
+sudo apt-get install graphviz
+
+# Fedora
+sudo dnf install graphviz
+```
+
+## Related Commands
+
+- [`bd deps`](/cli/deps) - Manage dependencies directly
+- [`bd ready`](/cli/ready) - Find unblocked work (Layer 0)
+- [`bd blocked`](/cli/blocked) - Show blocked issues and blockers
+- [`bd list`](/cli/list) - List issues with blocker annotations
+
+## See Also
+
+- [Dependencies Guide](/guides/dependencies)
+- [Epic Management](/guides/epics)
+- [Workflow Guide](/guides/workflow)

@@ -1,0 +1,439 @@
+---
+title: bd mol distill
+description: Extract a reusable formula from an existing epic
+---
+
+## Overview
+
+The `bd mol distill` command is the reverse of `bd mol pour`: instead of formula → molecule, it's molecule → formula. It extracts a reusable formula from an existing epic, converting concrete values to variable placeholders for future reuse.
+
+## Usage
+
+```bash
+# Extract formula from epic
+bd mol distill <epic-id> [formula-name]
+
+# With variable substitution
+bd mol distill bd-o5xe release-workflow --var branch_name=release-v2.0
+
+# Preview without creating file
+bd mol distill bd-abc123 --dry-run
+
+# Specify output directory
+bd mol distill bd-xyz789 my-workflow --output ~/.beads/formulas/
+```
+
+## Arguments
+
+- `<epic-id>` - ID of the epic to distill into a formula
+- `[formula-name]` - Optional formula name. If omitted, derived from epic title.
+
+## Options
+
+- `--var key=value` - Replace value with `{{variable}}` placeholder (can be specified multiple times)
+- `--dry-run` - Preview what would be created without writing files
+- `--output <dir>` - Output directory for formula file (default: auto-detect)
+- `--json` - Output results in JSON format
+
+## Variable Syntax
+
+Both formats are supported (smart detection):
+
+```bash
+# Spawn-style: variable=value (recommended)
+bd mol distill bd-epic workflow --var branch=feature-auth
+
+# Substitution-style: value=variable
+bd mol distill bd-epic workflow --var feature-auth=branch
+```
+
+The command detects which side is the concrete value by searching the epic text.
+
+## Output Locations
+
+Formulas are written to the first writable directory (in order):
+
+1. `.beads/formulas/` (project-level, default)
+2. `~/.beads/formulas/` (user-level, if project not writable)
+
+Use `--output` to specify a different directory.
+
+## Examples
+
+### Extract Simple Workflow
+
+Capture a successful workflow for reuse:
+
+```bash
+# Team completed feature bd-auth-feature
+bd mol distill bd-auth-feature feature-workflow
+```
+
+Output:
+```
+✓ Distilled formula: 6 steps
+  Formula: feature-workflow
+  Path: .beads/formulas/feature-workflow.formula.json
+
+To instantiate:
+  bd mol pour feature-workflow
+```
+
+### Extract with Variables
+
+Replace specific values with variables:
+
+```bash
+bd mol distill bd-auth-feature feature-workflow \
+  --var component=auth \
+  --var environment=staging
+```
+
+Output:
+```
+✓ Distilled formula: 6 steps
+  Formula: feature-workflow
+  Path: .beads/formulas/feature-workflow.formula.json
+  Variables: component, environment
+
+To instantiate:
+  bd mol pour feature-workflow --var component=<value> --var environment=<value>
+```
+
+### Preview Before Creating
+
+Use `--dry-run` to see the structure:
+
+```bash
+bd mol distill bd-deploy-prod deploy-workflow --dry-run
+```
+
+Output:
+```
+Dry run: would distill 8 steps from bd-deploy-prod into formula
+
+Formula: deploy-workflow
+Output: .beads/formulas/deploy-workflow.formula.json
+
+Variables:
+  environment: "production" → {{environment}}
+  version: "v2.0.0" → {{version}}
+
+Structure:
+  ├── pre-deploy-checks
+  ├── backup-database
+  ├── deploy-application
+  ├── run-migrations
+  ├── smoke-tests
+  ├── rollback-if-failed
+  └── post-deploy-verification
+```
+
+### Custom Output Location
+
+Save formula to specific directory:
+
+```bash
+bd mol distill bd-epic custom-workflow \
+  --output ~/shared/formulas/
+```
+
+## Variable Substitution
+
+### How It Works
+
+The `--var` flag replaces concrete values in the epic text with `{{variable}}` placeholders:
+
+**Before:**
+```
+Title: Deploy auth service to staging
+Description: Deploy the auth component to the staging environment
+```
+
+**After (with --var component=auth --var environment=staging):**
+```
+Title: Deploy {{component}} service to {{environment}}
+Description: Deploy the {{component}} component to the {{environment}} environment
+```
+
+### Smart Detection
+
+The command automatically detects which format you used:
+
+```bash
+# If epic contains "feature-auth" but not "branch"
+bd mol distill bd-epic --var branch=feature-auth
+# Detects: replace "feature-auth" with {{branch}}
+
+# If epic contains "feature-auth" but not "branch"
+bd mol distill bd-epic --var feature-auth=branch
+# Detects: replace "feature-auth" with {{branch}}
+```
+
+Both produce the same result. Use whichever feels more natural.
+
+### Multiple Variables
+
+Replace multiple values:
+
+```bash
+bd mol distill bd-release release-workflow \
+  --var version=v2.0.0 \
+  --var region=us-west \
+  --var tier=production
+```
+
+## Formula Structure
+
+The generated formula includes:
+
+- **Title and description** (from epic root)
+- **Steps** (from epic children)
+- **Dependencies** (from issue relationships)
+- **Variables** (from --var flags)
+- **Labels** (excluding internal ones)
+- **Priority levels**
+
+### Example Output File
+
+`.beads/formulas/feature-workflow.formula.json`:
+
+```json
+{
+  "formula": "feature-workflow",
+  "description": "Standard feature development workflow",
+  "version": 1,
+  "type": "workflow",
+  "vars": {
+    "component": {
+      "description": "Value for component",
+      "required": true
+    },
+    "environment": {
+      "description": "Value for environment",
+      "required": true
+    }
+  },
+  "steps": [
+    {
+      "id": "design",
+      "title": "Design {{component}} architecture",
+      "description": "Create design for the {{component}} component",
+      "type": "task"
+    },
+    {
+      "id": "implement",
+      "title": "Implement {{component}}",
+      "depends_on": ["design"],
+      "type": "task"
+    },
+    {
+      "id": "test",
+      "title": "Test {{component}} in {{environment}}",
+      "depends_on": ["implement"],
+      "type": "task"
+    }
+  ]
+}
+```
+
+## Use Cases
+
+### Capture Tribal Knowledge
+
+Team develops a successful workflow organically:
+
+```bash
+# Team completes feature work
+bd close bd-feature-auth
+
+# Capture the process
+bd mol distill bd-feature-auth auth-workflow
+
+# Reuse for next feature
+bd mol pour auth-workflow --var component=profile
+```
+
+### Create Organization Standards
+
+Standardize processes across teams:
+
+```bash
+# Senior engineer completes exemplary work
+bd mol distill bd-best-practice standard-feature \
+  --output ~/shared/formulas/
+
+# Share with team
+# Others can now use: bd mol pour standard-feature
+```
+
+### Incremental Refinement
+
+Start with basic formula, refine over iterations:
+
+```bash
+# First iteration
+bd mol pour basic-feature --var name=v1
+bd close bd-v1  # complete the work
+
+# Extract and improve
+bd mol distill bd-v1 improved-feature --var name=v1
+
+# Edit .beads/formulas/improved-feature.formula.json
+# Add better descriptions, more steps, etc.
+
+# Use improved version
+bd mol pour improved-feature --var name=v2
+```
+
+### Document Successful Releases
+
+Capture release processes that worked well:
+
+```bash
+# After successful release
+bd mol distill bd-release-v2.0 prod-release \
+  --var version=v2.0.0 \
+  --var date=2024-03-15
+
+# Use for next release
+bd mol pour prod-release \
+  --var version=v2.1.0 \
+  --var date=2024-04-15
+```
+
+### Emergency Response Templates
+
+Create templates from incident responses:
+
+```bash
+# After resolving incident
+bd mol distill bd-incident-response incident-template \
+  --var service=api \
+  --var severity=critical
+
+# Use during next incident
+bd mol pour incident-template \
+  --var service=database \
+  --var severity=high
+```
+
+## JSON Output
+
+```json
+{
+  "formula_name": "feature-workflow",
+  "formula_path": ".beads/formulas/feature-workflow.formula.json",
+  "steps": 6,
+  "variables": ["component", "environment"]
+}
+```
+
+## Workflow: Distill → Refine → Pour
+
+### 1. Distill
+
+Extract the raw formula:
+
+```bash
+bd mol distill bd-successful-epic my-workflow
+```
+
+### 2. Refine
+
+Edit the generated formula file:
+
+```bash
+# Edit .beads/formulas/my-workflow.formula.json
+# - Improve descriptions
+# - Add default values
+# - Adjust dependencies
+# - Add validation patterns
+```
+
+### 3. Verify
+
+Test the formula:
+
+```bash
+bd mol seed my-workflow
+```
+
+### 4. Pour
+
+Use the refined formula:
+
+```bash
+bd mol pour my-workflow --var name=test
+```
+
+## Common Patterns
+
+### No Variables (Direct Copy)
+
+Just capture the structure:
+
+```bash
+bd mol distill bd-epic simple-workflow
+# No --var flags = no variables, literal copy
+```
+
+### Auto-Named Formula
+
+Let formula name derive from epic title:
+
+```bash
+bd mol distill bd-epic
+# Formula name = sanitized epic title
+# "Deploy Auth Service" → "deploy-auth-service"
+```
+
+### Multiple Epics, Same Formula
+
+Distill similar epics to compare:
+
+```bash
+bd mol distill bd-feature-1 approach-1
+bd mol distill bd-feature-2 approach-2
+
+# Compare .beads/formulas/approach-*.formula.json
+# Merge best practices into unified formula
+```
+
+## Error Handling
+
+### Variable Not Found
+
+```bash
+bd mol distill bd-epic workflow --var nonexistent=value
+# Error: neither 'nonexistent' nor 'value' found in epic text
+```
+
+Solution: Check epic content and use actual values.
+
+### Epic Not Found
+
+```bash
+bd mol distill bd-missing workflow
+# Error: 'bd-missing' not found
+```
+
+Solution: Verify epic ID with `bd list --type epic`.
+
+### Write Permission Denied
+
+```bash
+bd mol distill bd-epic workflow
+# Error: no writable formula directory found
+# Try: mkdir -p .beads/formulas
+```
+
+Solution: Create `.beads/formulas/` directory or use `--output`.
+
+## Related Commands
+
+- [bd mol pour](/cli/mol-pour) - Instantiate formula as persistent molecule (reverse of distill)
+- [bd mol seed](/cli/mol-seed) - Verify formula can be loaded and cooked
+- [bd mol show](/cli/mol-show) - Display molecule structure before distilling
+- [bd formula list](/cli/formula-list) - List available formulas
+- [bd template save](/cli/template-save) - Save issue as template (simpler, single-issue version)

@@ -1,0 +1,157 @@
+---
+title: bd mol seed
+description: Verify formula accessibility or seed patrol formulas
+---
+
+## Overview
+
+The `bd mol seed` command verifies that formulas are accessible and can be cooked (instantiated). This is useful for verifying system health before patrols or agents attempt to spawn work.
+
+## Usage
+
+```bash
+# Verify all patrol formulas
+bd mol seed --patrol
+
+# Verify specific formula
+bd mol seed <formula-name>
+
+# Verify with variable substitution
+bd mol seed mol-review --var name=test
+```
+
+## Arguments
+
+- `[formula-name]` - Optional formula name to verify. Required unless using `--patrol` flag.
+
+## Options
+
+- `--patrol` - Verify all patrol formulas (mol-deacon-patrol, mol-witness-patrol, mol-refinery-patrol)
+- `--var key=value` - Variable substitution for condition filtering (can be specified multiple times)
+- `--json` - Output results in JSON format
+
+## Formula Search Paths
+
+Formulas are searched in the following order:
+
+1. `.beads/formulas/` (project level)
+2. `~/.beads/formulas/` (user level)
+3. `$GT_ROOT/.beads/formulas/` (orchestrator level, if GT_ROOT is set)
+
+## What Gets Verified
+
+The seed command checks that:
+
+1. Formula exists in the search path
+2. Formula syntax is valid
+3. Formula can be resolved (including extends/inheritance)
+4. Formula can be cooked to a subgraph structure
+
+## Examples
+
+### Verify Patrol Formulas
+
+Before starting automated patrols, verify all patrol formulas are accessible:
+
+```bash
+bd mol seed --patrol
+```
+
+Output:
+```
+✓ All patrol formulas accessible
+```
+
+### Verify Specific Formula
+
+Check if a custom formula can be used:
+
+```bash
+bd mol seed mol-feature-workflow
+```
+
+Output:
+```
+✓ Formula "mol-feature-workflow" accessible
+```
+
+### Verify with Variables
+
+Test formula with specific variable values for condition filtering:
+
+```bash
+bd mol seed mol-deploy --var environment=production --var region=us-west
+```
+
+## JSON Output
+
+With `--json` flag:
+
+```json
+{
+  "status": "ok",
+  "formula": "mol-feature-workflow"
+}
+```
+
+For patrol verification:
+
+```json
+{
+  "status": "ok",
+  "formulas": [
+    "mol-deacon-patrol",
+    "mol-witness-patrol",
+    "mol-refinery-patrol"
+  ]
+}
+```
+
+## Use Cases
+
+### Pre-Flight Checks
+
+Use in CI/CD pipelines or agent startup scripts to verify formulas are available:
+
+```bash
+#!/bin/bash
+if bd mol seed --patrol --json | jq -e '.status == "ok"' > /dev/null; then
+  echo "Formulas ready, starting patrol"
+  bd patrol start
+else
+  echo "Formula verification failed"
+  exit 1
+fi
+```
+
+### Development Workflow
+
+When developing new formulas, verify they can be loaded before attempting to use them:
+
+```bash
+# After editing .beads/formulas/mol-custom.formula.json
+bd mol seed mol-custom
+
+# If successful, try instantiating
+bd mol pour mol-custom --var feature=auth
+```
+
+### Debugging Formula Issues
+
+If a formula fails to instantiate, use seed to isolate whether the issue is:
+- Formula not found (check search paths)
+- Invalid syntax (JSON parsing error)
+- Resolution failure (extends chain broken)
+- Cooking failure (invalid step structure)
+
+## Exit Codes
+
+- `0` - Formula(s) successfully verified
+- `1` - Formula not found, invalid syntax, or verification failed
+
+## Related Commands
+
+- [bd mol show](/cli/mol-show) - Display formula structure after cooking
+- [bd mol pour](/cli/mol-pour) - Instantiate formula as persistent molecule
+- [bd mol wisp](/cli/mol-wisp) - Instantiate formula as ephemeral wisp
+- [bd formula list](/cli/formula-list) - List available formulas

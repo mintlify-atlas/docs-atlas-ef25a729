@@ -1,0 +1,473 @@
+---
+title: Sync and backup
+description: Dolt push/pull workflows for team collaboration and backup strategies
+---
+
+Beads uses Dolt's native version control for syncing issues across machines and backing up your data. This guide covers sync workflows, backup strategies, and protected branch setups.
+
+## Dolt sync overview
+
+Beads uses Dolt (git for data) as its database backend. Every write operation creates a Dolt commit:
+
+```bash
+bd create "Task" -p 1
+# → Creates Dolt commit: "Created issue bd-a3f8"
+
+bd update bd-a3f8 --status in_progress
+# → Creates Dolt commit: "Updated issue bd-a3f8"
+```
+
+Dolt commits form a version history independent of git commits.
+
+## Basic sync workflow
+
+<Steps>
+  <Step title="Configure Dolt remote">
+    Add a remote for syncing (DoltHub, DoltLab, or file-based):
+    
+    ```bash
+    # DoltHub (hosted)
+    bd dolt remote add origin your-org/your-repo
+    
+    # DoltLab (self-hosted)
+    bd dolt remote add origin https://doltlab.example.com/your-org/your-repo
+    
+    # File-based (local network or shared drive)
+    bd dolt remote add origin file:///mnt/shared/beads-backup
+    ```
+  </Step>
+
+  <Step title="Push changes">
+    Push local commits to remote:
+    
+    ```bash
+    bd dolt push origin main
+    ```
+    
+    <Tip>Install git hooks to auto-push: `bd hooks install --auto-push`</Tip>
+  </Step>
+
+  <Step title="Pull changes">
+    Pull remote commits:
+    
+    ```bash
+    bd dolt pull origin main
+    ```
+    
+    Dolt handles merges automatically with cell-level 3-way merge.
+  </Step>
+</Steps>
+
+## Sync modes
+
+### Direct mode (default)
+
+Issues commit directly to the Dolt database:
+
+```bash
+bd create "Task" -p 1
+# → Dolt commit in .beads/dolt/
+
+bd dolt push  # Push to remote
+```
+
+**Pros**:
+- Simple, no extra configuration
+- Immediate Dolt commits
+
+**Cons**:
+- Dolt commits are separate from git commits
+- Requires explicit push/pull
+
+### Protected branch mode
+
+For projects with branch protection (GitHub, GitLab):
+
+```bash
+# Initialize with sync branch
+bd init --branch beads-metadata
+
+# Issues commit to beads-metadata branch
+bd create "Task" -p 1
+# → Commit to beads-metadata branch
+
+# Periodically merge to main via PR
+git checkout main
+git merge beads-metadata
+git push origin main
+```
+
+**Pros**:
+- Works with protected branches
+- Beads commits don't directly touch main
+- Can review metadata changes in PRs
+
+**Cons**:
+- Requires periodic merges
+- Slightly more complex workflow
+
+<Note>See [Protected Branch Workflow](https://github.com/steveyegge/beads/blob/main/docs/PROTECTED_BRANCHES.md) for detailed setup.</Note>
+
+## Team sync workflows
+
+### Continuous sync (small teams)
+
+Every write auto-pushes:
+
+```bash
+# Enable auto-push via git hooks
+bd hooks install
+
+# Or manually enable
+bd config set dolt.auto_push true
+
+# Now every bd command auto-pushes
+bd create "Task" -p 1  # Auto-pushes to remote
+```
+
+**Best for**: 2-5 people, high trust, fast feedback
+
+### Periodic sync (larger teams)
+
+Pull before checking ready work, push after completing work:
+
+```bash
+# Start of session
+bd dolt pull
+
+# Work
+bd ready
+bd update bd-a3f8 --claim
+# ... do work ...
+bd close bd-a3f8 --reason "Done"
+
+# End of session
+bd dolt push
+```
+
+**Best for**: 5+ people, async work, less frequent coordination
+
+### Branch-based sync (formal processes)
+
+Each agent/developer works on a branch:
+
+```bash
+# Create feature branch
+bd dolt branch feature-auth
+bd dolt checkout feature-auth
+
+# Work on branch
+bd create "Add auth" -p 0
+
+# Push branch
+bd dolt push origin feature-auth
+
+# Later: merge to main
+bd dolt checkout main
+bd dolt merge feature-auth
+bd dolt push origin main
+```
+
+**Best for**: Large teams, code review processes, staged rollouts
+
+## Backup strategies
+
+### Automated Dolt backups
+
+Use `bd backup` for automated backups:
+
+<Steps>
+  <Step title="Initialize backup">
+    ```bash
+    bd backup init ~/beads-backups/my-project
+    ```
+    
+    This creates a backup repository with full Dolt history.
+  </Step>
+
+  <Step title="Configure auto-backup">
+    ```bash
+    bd config set backup.auto true
+    bd config set backup.interval 3600  # Backup every hour
+    ```
+  </Step>
+
+  <Step title="Manual backup">
+    ```bash
+    bd backup sync
+    ```
+    
+    Syncs latest changes to backup repo.
+  </Step>
+</Steps>
+
+### JSONL exports
+
+For portable backups:
+
+```bash
+# Export all issues
+bd export --output backup-$(date +%Y%m%d).jsonl
+
+# Export specific filters
+bd export --status open --output open-issues.jsonl
+
+# Import later
+bd import backup-20260304.jsonl
+```
+
+<Warning>JSONL exports lose Dolt history. Use Dolt backups for full version control.</Warning>
+
+### Remote redundancy
+
+Push to multiple remotes:
+
+```bash
+# Add multiple remotes
+bd dolt remote add dolthub your-org/repo
+bd dolt remote add s3 s3://your-bucket/beads-backup
+bd dolt remote add local file:///mnt/backup/beads
+
+# Push to all
+bd dolt push dolthub main
+bd dolt push s3 main
+bd dolt push local main
+
+# Or use git-style push to all
+for remote in $(bd dolt remote list); do
+  bd dolt push $remote main
+done
+```
+
+### Scheduled backups
+
+Set up cron job:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Backup every 6 hours
+0 */6 * * * cd ~/your-project && bd backup sync
+
+# Daily JSONL export
+0 2 * * * cd ~/your-project && bd export --output ~/backups/beads-$(date +\%Y\%m\%d).jsonl
+```
+
+## Conflict resolution
+
+Dolt uses cell-level 3-way merge:
+
+### Auto-merge scenarios
+
+**Different issues modified**:
+```bash
+# Machine A: updates bd-a3f8
+bd update bd-a3f8 --status in_progress
+bd dolt push
+
+# Machine B: updates bd-b7c2
+bd update bd-b7c2 --status in_progress
+bd dolt pull  # Auto-merges (different rows)
+```
+
+**Different fields modified**:
+```bash
+# Machine A: updates title
+bd update bd-a3f8 --title "New title"
+bd dolt push
+
+# Machine B: updates description
+bd update bd-a3f8 --description "New description"
+bd dolt pull  # Auto-merges (different columns)
+```
+
+### Manual conflict resolution
+
+**Same field modified**:
+```bash
+# Machine A: updates priority
+bd update bd-a3f8 --priority 0
+bd dolt push
+
+# Machine B: updates priority
+bd update bd-a3f8 --priority 1
+bd dolt pull  # Conflict!
+
+# Resolve conflict
+bd dolt conflicts resolve --ours  # Use Machine B's value
+# or
+bd dolt conflicts resolve --theirs  # Use Machine A's value
+# or manually edit
+
+bd dolt commit -m "Resolved conflict"
+```
+
+<Tip>Hash-based IDs prevent ID collisions. Conflicts are rare in practice.</Tip>
+
+## Multi-machine setup
+
+### Setup on Machine 1
+
+```bash
+cd ~/your-project
+bd init
+
+# Configure remote
+bd dolt remote add origin your-org/repo
+
+# Create initial issues
+bd create "Task 1" -p 1
+bd create "Task 2" -p 2
+
+# Push to remote
+bd dolt push origin main
+```
+
+### Setup on Machine 2
+
+```bash
+cd ~/your-project
+bd init  # Creates local .beads/
+
+# Configure same remote
+bd dolt remote add origin your-org/repo
+
+# Pull existing data
+bd dolt pull origin main
+
+# Verify
+bd list  # Should show Task 1 and Task 2
+```
+
+### Ongoing workflow
+
+**Machine 1**:
+```bash
+bd dolt pull  # Get Machine 2's changes
+bd create "Task 3" -p 1
+bd dolt push
+```
+
+**Machine 2**:
+```bash
+bd dolt pull  # Get Machine 1's Task 3
+bd update bd-task3 --claim
+bd dolt push
+```
+
+## Recovery scenarios
+
+### Lost local database
+
+```bash
+# Database corrupted or deleted
+rm -rf .beads/
+
+# Reinitialize and restore
+bd init
+bd dolt remote add origin your-org/repo
+bd dolt pull origin main
+
+# Verify
+bd list
+```
+
+### Restore from backup
+
+```bash
+# From Dolt backup
+bd backup restore ~/beads-backups/my-project
+
+# From JSONL
+bd import ~/backups/beads-20260304.jsonl
+```
+
+### Time travel
+
+Restore to previous state:
+
+```bash
+# View history
+bd dolt log
+
+# Checkout previous commit
+bd dolt checkout <commit-hash>
+
+# Or reset to previous state
+bd dolt reset --hard <commit-hash>
+```
+
+<Warning>Use `dolt reset --hard` carefully. It discards all changes after the specified commit.</Warning>
+
+## Performance considerations
+
+### Large databases
+
+For repositories with 10,000+ issues:
+
+```bash
+# Enable shallow fetch for faster pulls
+bd config set dolt.shallow_clone true
+
+# Compact database regularly
+bd compact --tier 1  # Summarize old closed issues
+bd dolt gc  # Garbage collect
+```
+
+### Network optimization
+
+```bash
+# Use compression for slow connections
+bd config set dolt.compression true
+
+# Batch pushes (don't push every write)
+bd config set dolt.auto_push false
+bd hooks install  # Push on git push instead
+```
+
+## Troubleshooting
+
+### Push fails: "ref update failed"
+
+**Cause**: Remote has commits you don't have.
+
+**Solution**:
+```bash
+bd dolt pull origin main
+bd dolt push origin main
+```
+
+### Pull fails: "merge conflict"
+
+**Cause**: Conflicting changes on same field.
+
+**Solution**:
+```bash
+bd dolt conflicts list
+bd dolt conflicts resolve --ours  # or --theirs
+bd dolt commit -m "Resolved conflicts"
+```
+
+### Remote not found
+
+**Cause**: Remote not configured or incorrect URL.
+
+**Solution**:
+```bash
+# List remotes
+bd dolt remote list
+
+# Add remote
+bd dolt remote add origin your-org/repo
+
+# Test connection
+bd dolt push origin main --dry-run
+```
+
+## See also
+
+- [CLI Reference: dolt](/cli/dolt) - Complete Dolt command reference
+- [CLI Reference: backup](/cli/backup) - Backup command reference
+- [Protected Branches](https://github.com/steveyegge/beads/blob/main/docs/PROTECTED_BRANCHES.md) - GitHub/GitLab workflow
+- [Contributor mode](/guides/contributor-mode) - Multi-repo workflows

@@ -1,97 +1,192 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Beads Documentation"
+description: "Distributed, git-backed graph issue tracker for AI agents with persistent memory and dependency tracking"
 ---
 
-## Setting up
+<div className="relative py-20 overflow-hidden bg-gradient-to-br from-[#6366f1] via-[#4f46e5] to-[#4338ca] dark:from-[#4f46e5] dark:via-[#4338ca] dark:to-[#3730a3]">
+  <div className="max-w-6xl mx-auto px-6 sm:px-8 lg:px-12">
+    <div className="text-center">
+      <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+        Memory Upgrade for Your Coding Agent
+      </h1>
+      <p className="text-lg sm:text-xl text-white/90 max-w-3xl mx-auto mb-10">
+        Beads replaces messy markdown plans with a dependency-aware graph, allowing agents to handle long-horizon tasks without losing context. Built on Dolt with native version control and zero-conflict merges.
+      </p>
+      <div className="flex flex-wrap gap-4 justify-center">
+        <a 
+          href="/quickstart" 
+          className="inline-flex items-center px-6 py-3 text-base font-medium rounded-lg bg-white text-[#6366f1] hover:bg-gray-50 transition-colors no-underline"
+        >
+          Get Started
+        </a>
+        <a 
+          href="/cli/overview" 
+          className="inline-flex items-center px-6 py-3 text-base font-medium rounded-lg border border-white/30 bg-white/10 text-white hover:bg-white/20 transition-colors no-underline"
+        >
+          CLI Reference
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+## Quick start
 
-## Make it yours
+Get Beads running in your project in under a minute.
 
-Design a docs site that looks great and empowers your users.
+<Steps>
+  <Step title="Install Beads CLI">
+    Install the `bd` CLI globally using your preferred package manager:
+    
+    <CodeGroup>
+    ```bash npm
+    npm install -g @beads/bd
+    ```
+    ```bash Homebrew
+    brew install beads
+    ```
+    ```bash Go
+    go install github.com/steveyegge/beads/cmd/bd@latest
+    ```
+    </CodeGroup>
+  </Step>
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+  <Step title="Initialize in your project">
+    Navigate to your project directory and initialize Beads:
+    
+    ```bash
+    cd your-project
+    bd init
+    ```
+    
+    This creates a `.beads` directory with a Dolt database for tracking issues.
+  </Step>
+
+  <Step title="Create your first issue">
+    Create a task and let your agent get to work:
+    
+    ```bash
+    bd create "Add authentication system" -p 0 --json
+    ```
+    
+    <Accordion title="Example JSON output">
+    ```json
+    {
+      "id": "bd-a3f8",
+      "title": "Add authentication system",
+      "status": "open",
+      "priority": 0,
+      "created_at": "2026-03-04T10:00:00Z"
+    }
+    ```
+    </Accordion>
+  </Step>
+
+  <Step title="Check ready tasks">
+    View unblocked tasks ready for work:
+    
+    ```bash
+    bd ready --json
+    ```
+    
+    Your agent can now pick up tasks with no open dependencies and start working.
+  </Step>
+</Steps>
+
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+
+## Key features
+
+Discover what makes Beads perfect for AI agent workflows.
+
+<CardGroup cols={2}>
+  <Card title="Dolt-powered versioning" icon="database" href="/concepts/architecture">
+    Version-controlled SQL database with cell-level merge and native branching. Every change is tracked in Dolt history.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Zero-conflict IDs" icon="fingerprint" href="/concepts/dependencies">
+    Hash-based IDs like `bd-a3f8` prevent merge collisions in multi-agent and multi-branch workflows.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Dependency tracking" icon="diagram-project" href="/concepts/dependencies">
+    Track blockers and relationships between issues with `blocks`, `relates_to`, `duplicates`, and `supersedes` links.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Persistent memory" icon="brain" href="/concepts/memory">
+    Agent memory that survives sessions and account rotations. Use `bd remember` to store knowledge permanently.
   </Card>
-</Columns>
+  <Card title="Memory compaction" icon="compress" href="/cli/compact">
+    Semantic "memory decay" summarizes old closed tasks to save context window and keep agents focused.
+  </Card>
+  <Card title="Auto-ready detection" icon="bolt" href="/cli/ready">
+    Automatically detects tasks with no open blockers, making it easy for agents to find work.
+  </Card>
+  <Card title="Contributor mode" icon="code-branch" href="/guides/contributor-mode">
+    Route planning issues to a separate repo when working on forked projects. Keep experimental work out of PRs.
+  </Card>
+  <Card title="Graph visualization" icon="network-wired" href="/cli/graph">
+    Visualize dependencies and relationships across your entire issue graph.
+  </Card>
+</CardGroup>
 
-## Create beautiful pages
+</div>
 
-Everything you need to create world-class documentation.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Explore by topic
 
-## Need inspiration?
+<CardGroup cols={2}>
+  <Card title="Core concepts" icon="book-open" href="/concepts/architecture">
+    Understand Beads architecture, dependency tracking, and workflows.
+  </Card>
+  <Card title="Agent workflow" icon="robot" href="/guides/agent-workflow">
+    Learn how to integrate Beads into your AI agent's task management workflow.
+  </Card>
+  <Card title="CLI reference" icon="terminal" href="/cli/overview">
+    Complete reference for all `bd` commands with examples and flags.
+  </Card>
+  <Card title="Integrations" icon="puzzle-piece" href="/integrations/claude">
+    Set up Beads with Claude, Copilot, Aider, and other AI tools.
+  </Card>
+</CardGroup>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="FAQ" icon="circle-question" href="/resources/faq">
+    Answers to common questions about Beads and its features.
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/resources/troubleshooting">
+    Debug common issues and learn how to use `bd doctor` for repairs.
+  </Card>
+  <Card title="Community tools" icon="users" href="/resources/community-tools">
+    Explore community-built UIs, extensions, and integrations.
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/resources/contributing">
+    Learn how to contribute to Beads development.
+  </Card>
+</CardGroup>
+
+</div>
+
+<div className="mt-20 mb-16 max-w-5xl mx-auto px-6">
+  <div className="rounded-2xl border border-gray-200 dark:border-[#27272a] bg-gray-50 dark:bg-[#1a1d27] p-8 sm:p-12 text-center">
+    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4">
+      Ready to upgrade your agent's memory?
+    </h2>
+    <p className="text-base text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-8">
+      Install Beads and give your coding agent the persistent, structured memory it needs for long-horizon tasks.
+    </p>
+    <a 
+      href="/quickstart" 
+      className="inline-flex items-center px-6 py-3 text-base font-medium rounded-lg bg-[#6366f1] text-white hover:bg-[#4f46e5] transition-colors no-underline"
+    >
+      Get Started
+    </a>
+  </div>
+</div>

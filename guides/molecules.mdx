@@ -1,0 +1,425 @@
+---
+title: Molecules
+description: Advanced multi-issue workflow management with mol commands
+---
+
+Molecules are Beads' advanced workflow feature for managing complex, multi-issue work. They allow you to group related issues, track progress, and create reusable workflow templates.
+
+## What are molecules?
+
+A **molecule** is a collection of related issues that form a cohesive workflow:
+
+- **Formula**: A template defining the workflow structure
+- **Proto**: An uninstantiated formula (not yet poured)
+- **Molecule**: A spawned instance with actual issues
+- **Bond**: A link between issues in the molecule
+
+Think of molecules as "advanced epics" with formal structure and reusable templates.
+
+## Core concepts
+
+### Formulas
+
+Formulas are YAML files defining workflow structure:
+
+```yaml
+# .beads/formulas/feature.yaml
+name: feature-workflow
+steps:
+  - title: "Design phase"
+    type: task
+    priority: 1
+  - title: "Implementation"
+    type: feature
+    priority: 0
+    depends_on: [0]  # Blocks on design phase
+  - title: "Testing"
+    type: task
+    priority: 1
+    depends_on: [1]  # Blocks on implementation
+  - title: "Documentation"
+    type: task
+    priority: 2
+    depends_on: [1]
+```
+
+### Lifecycle
+
+1. **Seed**: Verify formula is valid (`bd mol seed`)
+2. **Pour**: Instantiate formula into actual issues (`bd mol pour`)
+3. **Bond**: Link issues together (`bd mol bond`)
+4. **Current**: Track position in workflow (`bd mol current`)
+5. **Distill**: Extract formula from existing molecule (`bd mol distill`)
+
+## Mol seed: Formula verification
+
+`bd mol seed` verifies formulas can be cooked:
+
+```bash
+# Verify default patrol formula
+bd mol seed
+
+# Verify specific formula
+bd mol seed .beads/formulas/feature.yaml
+
+# Verify custom formula from any path
+bd mol seed ~/my-workflows/release.yaml
+```
+
+<Accordion title="Example output">
+```
+✓ Formula found: .beads/formulas/patrol.yaml
+✓ Syntax valid
+✓ All steps resolvable
+✓ Formula can be cooked
+
+Formula summary:
+  Name: patrol-workflow
+  Steps: 5
+  Dependencies: 3 blocking relationships
+```
+</Accordion>
+
+**Use cases**:
+- CI/CD pre-flight checks
+- Debugging formula syntax
+- Validating formula before distribution
+
+## Mol bond: Linking issues
+
+`bd mol bond` creates relationships between issues:
+
+### Sequential bonding
+
+Create linear workflow:
+
+```bash
+# Bond three issues in sequence
+bd mol bond bd-a3f8 bd-b7c2 bd-d4f9
+
+# Result: a3f8 → b7c2 → d4f9
+# (b7c2 blocks on a3f8, d4f9 blocks on b7c2)
+```
+
+### Parallel bonding
+
+Create parallel work:
+
+```bash
+# Two implementation tasks block on design
+bd mol bond bd-design bd-impl1 bd-impl2
+
+# Result:
+#         ┌─> impl1
+# design ─┤
+#         └─> impl2
+```
+
+### Conditional bonding
+
+Create conditional workflows:
+
+```bash
+# Testing blocks on implementation OR hotfix
+bd mol bond --or bd-impl bd-hotfix bd-test
+
+# Result: test proceeds when EITHER impl OR hotfix completes
+```
+
+### Polymorphic bonding
+
+Bond accepts multiple operand types:
+
+```yaml
+# Bond types:
+- formula + formula  # Compose workflows
+- proto + mol       # Extend molecule
+- mol + mol         # Merge molecules
+- issue + issue     # Link issues (same as bd dep add)
+```
+
+### Phase control
+
+Control when bonds become permanent:
+
+```bash
+# Ephemeral bond (for experimentation)
+bd mol bond --ephemeral bd-a3f8 bd-b7c2
+
+# Persistent bond (default)
+bd mol bond --persistent bd-a3f8 bd-b7c2
+```
+
+<Tip>Ephemeral bonds are automatically cleaned up by `bd mol distill` or `bd purge`.</Tip>
+
+## Mol current: Position tracking
+
+`bd mol current` shows your position in a molecule workflow:
+
+```bash
+# Show current position in active molecule
+bd mol current
+
+# Show specific molecule
+bd mol current bd-mol-123
+```
+
+<Accordion title="Example output">
+```
+Molecule: bd-mol-123 (feature-workflow)
+Progress: 3/5 steps complete (60%)
+
+Steps:
+  ✓ bd-a3f8: Design phase [done]
+  ✓ bd-b7c2: Implementation [done]
+  ● bd-d4f9: Testing [current] ← YOU ARE HERE
+  ○ bd-f6k1: Documentation [ready]
+  ■ bd-h8m3: Release [blocked]
+
+Legend:
+  ✓ done    - Completed
+  ● current - Active work
+  ○ ready   - Unblocked, ready to start
+  ■ blocked - Waiting on dependencies
+  ▫ pending - Not yet reached
+```
+</Accordion>
+
+### Large molecule handling
+
+For molecules with 100+ steps:
+
+```bash
+# Limit output to 20 steps
+bd mol current --limit 20
+
+# Show specific range
+bd mol current --range 10-30
+
+# Show only current section
+bd mol current --context 5  # Show 5 steps before/after current
+```
+
+### Multi-agent coordination
+
+```bash
+# Agent 1: Check position
+bd mol current
+# "You are at step 3/10: Implementation"
+
+# Agent 1: Claim current step
+bd ready --json | jq -r '.[0].id' | xargs bd update --claim
+
+# Agent 2: Check position (after Agent 1 claims)
+bd mol current
+# "Step 3 is claimed by agent-1. Next ready: Step 5"
+```
+
+## Mol distill: Formula extraction
+
+`bd mol distill` reverse-engineers a formula from an existing molecule:
+
+```bash
+# Distill molecule to formula
+bd mol distill bd-mol-123 --output .beads/formulas/my-workflow.yaml
+
+# Distill with variable substitution
+bd mol distill bd-mol-123 --vars --output feature-template.yaml
+```
+
+<Accordion title="Example output">
+```yaml
+# Generated by bd mol distill
+name: distilled-workflow
+variables:
+  feature_name: "Authentication"
+  priority: 0
+steps:
+  - title: "Design {{feature_name}}"
+    type: task
+    priority: "{{priority}}"
+  - title: "Implement {{feature_name}}"
+    type: feature
+    priority: "{{priority}}"
+    depends_on: [0]
+  - title: "Test {{feature_name}}"
+    type: task
+    priority: 1
+    depends_on: [1]
+```
+</Accordion>
+
+### Variable substitution
+
+Distill detects repeated patterns:
+
+```bash
+# Issues with similar titles get variables
+bd create "Add auth to API" -p 0
+bd create "Add auth to UI" -p 0
+bd create "Add auth to CLI" -p 0
+
+# Distill creates:
+# "Add {{component}} to {{feature}}"
+```
+
+### Use cases
+
+**Capture tribal knowledge**:
+```bash
+# You've done this workflow 5 times manually
+# Distill the last instance to create a template
+bd mol distill bd-mol-last --output .beads/formulas/onboarding.yaml
+```
+
+**Organization standards**:
+```bash
+# Senior engineer creates canonical workflow
+bd mol distill bd-mol-canonical --output .beads/formulas/release-process.yaml
+
+# Junior engineers pour from template
+bd mol pour .beads/formulas/release-process.yaml
+```
+
+**Emergency response templates**:
+```bash
+# Document incident response workflow
+bd mol distill bd-mol-incident-42 --output incident-response.yaml
+
+# Next incident: pour instantly
+bd mol pour incident-response.yaml
+```
+
+## Workflow patterns
+
+### Pipeline composition
+
+Compose workflows from smaller pieces:
+
+```bash
+# Create design + implementation + testing pipeline
+bd mol bond design.yaml implementation.yaml testing.yaml
+
+# Result: Combined workflow with proper dependencies
+```
+
+### Progressive enhancement
+
+Start minimal, add steps:
+
+```bash
+# Start with MVP
+bd mol pour mvp.yaml
+
+# Later: add polish steps
+bd mol bond mvp polish.yaml
+```
+
+### Patrol workflows
+
+Repetitive maintenance tasks:
+
+```bash
+# Weekly patrol formula
+bd mol pour patrol.yaml --vars '{"week": "2026-W10"}'
+
+# Generates:
+# - "Check CI health (2026-W10)"
+# - "Review open PRs (2026-W10)"
+# - "Update dependencies (2026-W10)"
+```
+
+### The Christmas Ornament pattern
+
+Dynamic bonding with custom IDs:
+
+```bash
+# Create molecule with custom ID
+bd mol pour feature.yaml --id feat-auth-2026q1
+
+# Bond to existing work
+bd mol bond bd-epic-123 feat-auth-2026q1
+
+# Later: distill and re-pour
+bd mol distill feat-auth-2026q1 | bd mol pour - --id feat-oauth-2026q2
+```
+
+## Best practices
+
+### For formula authors
+
+- ✅ Keep formulas focused (5-10 steps max)
+- ✅ Use variables for reusability
+- ✅ Document formula purpose in YAML comments
+- ✅ Test formulas with `bd mol seed` before distribution
+- ✅ Version control formulas in `.beads/formulas/`
+
+### For formula users
+
+- ✅ Use `bd mol current` to track progress
+- ✅ Pour from trusted formulas only
+- ✅ Customize poured molecules as needed
+- ✅ Distill successful workflows for reuse
+- ✅ Clean up ephemeral bonds with `bd purge`
+
+### For teams
+
+- ✅ Maintain formula library in `.beads/formulas/`
+- ✅ Document formula usage in README
+- ✅ Review formula changes in PRs
+- ✅ Use `bd mol seed` in CI to validate formulas
+- ✅ Share successful workflows via distill
+
+## Troubleshooting
+
+### Formula not found
+
+**Symptom**: `bd mol seed` reports "formula not found"
+
+**Solution**: Check search paths:
+```bash
+# Formulas are searched in:
+# 1. ./.beads/formulas/
+# 2. ~/.beads/formulas/
+# 3. /usr/local/share/beads/formulas/
+
+# Verify formula exists
+ls -la .beads/formulas/
+```
+
+### Circular dependencies
+
+**Symptom**: `bd mol pour` fails with "circular dependency detected"
+
+**Solution**: Check formula for cycles:
+```yaml
+steps:
+  - title: "Step A"
+    depends_on: [1]  # Depends on Step B
+  - title: "Step B"
+    depends_on: [0]  # Depends on Step A ← CYCLE!
+```
+
+### Bond failed: issues already linked
+
+**Symptom**: `bd mol bond` fails with "dependency already exists"
+
+**Solution**: Remove existing dependency first:
+```bash
+# Check existing dependencies
+bd dep tree bd-a3f8
+
+# Remove conflicting dependency
+bd dep rm bd-a3f8 bd-b7c2
+
+# Now bond
+bd mol bond bd-a3f8 bd-b7c2
+```
+
+## See also
+
+- [CLI Reference: mol-seed](/cli/mol-seed) - Formula verification
+- [CLI Reference: mol-bond](/cli/mol-bond) - Bonding operations
+- [CLI Reference: mol-current](/cli/mol-current) - Position tracking
+- [CLI Reference: mol-distill](/cli/mol-distill) - Formula extraction
+- [Dependencies](/concepts/dependencies) - Dependency system overview

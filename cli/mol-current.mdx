@@ -1,0 +1,344 @@
+---
+title: bd mol current
+description: Show current position in molecule workflow
+---
+
+## Overview
+
+The `bd mol current` command shows where you are in a molecule workflow. It displays all steps with their status, highlights the current step, identifies what's ready to work on next, and shows overall progress.
+
+## Usage
+
+```bash
+# Show current molecule for assigned agent
+bd mol current
+
+# Show specific molecule
+bd mol current <molecule-id>
+
+# Show molecules for specific agent
+bd mol current --for alice
+
+# View first 50 steps of large molecule
+bd mol current bd-large-mol --limit 50
+
+# View specific step range
+bd mol current bd-large-mol --range 100-150
+```
+
+## Arguments
+
+- `[molecule-id]` - Optional molecule ID. If not provided, infers from in_progress issues assigned to current agent.
+
+## Options
+
+- `--for <agent>` - Show molecules for specific agent/assignee
+- `--limit <n>` - Maximum number of steps to display (default: auto, 0 = show summary for large molecules)
+- `--range <start-end>` - Display specific step range (e.g., "1-50", "100-150")
+- `--json` - Output results in JSON format
+
+## Step Status Indicators
+
+Each step is shown with a status indicator:
+
+- `[done]` - Step is complete (closed)
+- `[current]` - Step is in_progress (you are here)
+- `[ready]` - Step is ready to start (unblocked)
+- `[blocked]` - Step is blocked by dependencies
+- `[pending]` - Step is waiting
+
+## Large Molecule Handling
+
+For molecules with more than 100 steps, a summary is shown instead of the full list:
+
+```
+Molecule: bd-mega-project
+  Large scale refactoring initiative
+
+Progress: 45 / 237 steps (19.0%)
+Current step: bd-mega-project.phase2.auth
+
+Note: This molecule has 237 steps (threshold: 100).
+To view steps, use one of:
+  bd mol current bd-mega-project --limit 50        # First 50 steps
+  bd mol current bd-mega-project --range 1-50     # Steps 1-50
+  bd mol progress bd-mega-project                 # Efficient progress summary
+```
+
+Use `--limit` or `--range` to view specific sections.
+
+## Examples
+
+### Show Current Work
+
+See which molecule you're currently working on:
+
+```bash
+bd mol current
+```
+
+Output:
+```
+You're working on molecule bd-feature-auth
+  Implement user authentication
+  Assigned to: alice
+
+  [done] bd-auth-1: Design authentication flow
+  [done] bd-auth-2: Set up database schema
+  [current] bd-auth-3: Implement login endpoint <- YOU ARE HERE
+  [ready] bd-auth-4: Implement logout endpoint
+  [blocked] bd-auth-5: Add session management
+  [pending] bd-auth-6: Write integration tests
+
+Progress: 2/6 steps complete
+
+Next ready: bd-auth-4 - Implement logout endpoint
+  Start with: bd update bd-auth-4 --claim
+
+💡 Run `bd show bd-auth-3` to see detailed instructions.
+```
+
+### Show Specific Molecule
+
+Check status of any molecule by ID:
+
+```bash
+bd mol current bd-deploy-staging
+```
+
+### Show Another Agent's Work
+
+See what another agent is working on:
+
+```bash
+bd mol current --for bob
+```
+
+Output shows all molecules with in_progress steps assigned to Bob.
+
+### View Large Molecule Steps
+
+For molecules with many steps, use `--limit` or `--range`:
+
+```bash
+# First 50 steps
+bd mol current bd-large-refactor --limit 50
+
+# Steps 100-150
+bd mol current bd-large-refactor --range 100-150
+
+# Next 20 steps after step 50
+bd mol current bd-large-refactor --range 51-70
+```
+
+### Multiple Active Molecules
+
+If working on multiple molecules simultaneously:
+
+```bash
+bd mol current
+```
+
+Output:
+```
+You're working on molecule bd-feature-auth
+  Implement user authentication
+  [current] bd-auth-3: Implement login endpoint <- YOU ARE HERE
+  Progress: 2/6 steps complete
+
+You're working on molecule bd-bugfix-cache
+  Fix cache invalidation bug
+  [current] bd-cache-2: Add test case <- YOU ARE HERE
+  Progress: 1/3 steps complete
+```
+
+## JSON Output
+
+```json
+[
+  {
+    "molecule_id": "bd-feature-auth",
+    "molecule_title": "Implement user authentication",
+    "assignee": "alice",
+    "current_step": {
+      "id": "bd-auth-3",
+      "title": "Implement login endpoint",
+      "status": "in_progress"
+    },
+    "next_step": {
+      "id": "bd-auth-4",
+      "title": "Implement logout endpoint",
+      "status": "open"
+    },
+    "steps": [
+      {
+        "issue": { "id": "bd-auth-1", "title": "Design authentication flow" },
+        "status": "done",
+        "is_current": false
+      },
+      {
+        "issue": { "id": "bd-auth-3", "title": "Implement login endpoint" },
+        "status": "current",
+        "is_current": true
+      }
+    ],
+    "completed": 2,
+    "total": 6
+  }
+]
+```
+
+## Workflow Integration
+
+### Starting Work
+
+Begin work on the next ready step:
+
+```bash
+# Check what's ready
+bd mol current
+
+# Claim the next step
+bd update bd-auth-4 --claim
+
+# Verify you're on it
+bd mol current
+```
+
+### Completing Steps
+
+When closing a step, `bd close` automatically shows the next step:
+
+```bash
+bd close bd-auth-3 --reason "Login endpoint implemented"
+```
+
+Output:
+```
+✓ Closed bd-auth-3
+
+Next ready in molecule:
+  bd-auth-4: Implement logout endpoint
+
+→ Marked in_progress (use --no-auto to skip)
+```
+
+### Monitoring Progress
+
+Track molecule progress over time:
+
+```bash
+# Morning: check status
+bd mol current
+# Progress: 2/6 steps complete
+
+# ... work on steps ...
+
+# Evening: check status
+bd mol current
+# Progress: 4/6 steps complete
+```
+
+## Use Cases
+
+### Agent Onboarding
+
+New agent joins project and checks assigned work:
+
+```bash
+# What am I working on?
+bd mol current
+
+# What's the current step about?
+bd show bd-auth-3
+
+# Start working
+bd update bd-auth-3 --claim
+```
+
+### Multi-Agent Coordination
+
+Team lead checks team progress:
+
+```bash
+# Check Alice's work
+bd mol current --for alice
+
+# Check Bob's work
+bd mol current --for bob
+
+# Identify bottlenecks
+for agent in alice bob charlie; do
+  echo "\n=== $agent ==="
+  bd mol current --for $agent --json | \
+    jq -r '.[].steps[] | select(.status == "blocked") | .issue.title'
+done
+```
+
+### Patrol Status Checks
+
+Monitor ephemeral patrol molecule progress:
+
+```bash
+# Check patrol status
+bd mol current wisp-patrol-run-$(date +%Y%m%d)
+
+# See detailed step info
+bd mol current wisp-patrol-run-$(date +%Y%m%d) --json | \
+  jq '.steps[] | {id: .issue.id, status: .status}'
+```
+
+### Release Management
+
+Track release molecule across phases:
+
+```bash
+# Check release progress
+bd mol current bd-release-v2.0
+
+# View specific phase
+bd mol show bd-release-v2.0 | grep -A5 "Phase 2"
+
+# View deployment steps (assuming they're steps 50-75)
+bd mol current bd-release-v2.0 --range 50-75
+```
+
+## Finding Your Molecule
+
+If you can't remember the molecule ID:
+
+```bash
+# Show your current molecules
+bd mol current
+
+# List all open epics (molecules)
+bd list --type epic --status open
+
+# Search by title
+bd list --type epic | grep auth
+```
+
+## Fallback Behavior
+
+When no molecule ID is provided, `bd mol current` looks for molecules in this order:
+
+1. Molecules with in_progress steps assigned to you
+2. Molecules bonded to your hooked issues
+3. If none found, shows helpful message:
+
+```
+No molecules in progress for alice.
+
+To start work on a molecule:
+  bd mol wisp create <proto-id>  # Instantiate as ephemeral wisp
+  bd update <step-id> --claim    # Claim a step
+```
+
+## Related Commands
+
+- [bd mol show](/cli/mol-show) - Display molecule structure and all steps
+- [bd mol progress](/cli/mol-progress) - Efficient progress summary (no step list)
+- [bd show](/cli/show) - View detailed instructions for a specific step
+- [bd update](/cli/update) - Claim a step or update its status
+- [bd close](/cli/close) - Complete a step (auto-advances to next)
+- [bd list](/cli/list) - List all issues including molecules

@@ -1,0 +1,413 @@
+---
+title: MCP Server
+description: Model Context Protocol server for AI agents to access Beads through native tool calls
+---
+
+The Beads MCP (Model Context Protocol) server enables AI agents to manage issues through native tool calls. This is ideal for MCP-only environments like Claude Desktop.
+
+<Warning>
+For environments with shell access (Claude Code, Cursor, Windsurf), the **CLI + hooks approach is recommended** over MCP. It uses ~1-2k tokens vs 10-50k for MCP schemas, resulting in lower compute cost and latency.
+</Warning>
+
+## When to Use MCP
+
+<CardGroup cols={2}>
+  <Card title="Use MCP" icon="check">
+    - Claude Desktop (no shell access)
+    - VS Code with GitHub Copilot
+    - MCP-only environments
+    - Natural language interfaces
+  </Card>
+  <Card title="Use CLI + Hooks" icon="bolt">
+    - Claude Code
+    - Cursor
+    - Windsurf
+    - Any environment with shell access
+  </Card>
+</CardGroup>
+
+## Installation
+
+<Steps>
+  <Step title="Install beads-mcp">
+    Install from PyPI using uv (recommended):
+    ```bash
+    uv tool install beads-mcp
+    ```
+
+    Alternative installation methods:
+    ```bash
+    # Using pip
+    pip install beads-mcp
+
+    # Using pipx
+    pipx install beads-mcp
+    ```
+  </Step>
+
+  <Step title="Configure your AI client">
+    <Tabs>
+      <Tab title="Claude Desktop">
+        Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+        ```json
+        {
+          "mcpServers": {
+            "beads": {
+              "command": "beads-mcp"
+            }
+          }
+        }
+        ```
+      </Tab>
+
+      <Tab title="VS Code (Copilot)">
+        Create or edit `.vscode/mcp.json` in your project:
+
+        ```json
+        {
+          "servers": {
+            "beads": {
+              "command": "beads-mcp"
+            }
+          }
+        }
+        ```
+
+        Or configure globally at:
+        - macOS: `~/Library/Application Support/Code/User/mcp.json`
+        - Linux: `~/.config/Code/User/mcp.json`
+        - Windows: `%APPDATA%\Code\User\mcp.json`
+      </Tab>
+
+      <Tab title="Development">
+        For development with local clone:
+
+        ```json
+        {
+          "mcpServers": {
+            "beads": {
+              "command": "uv",
+              "args": [
+                "--directory",
+                "/path/to/beads-mcp",
+                "run",
+                "beads-mcp"
+              ]
+            }
+          }
+        }
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Initialize Beads in your project">
+    ```bash
+    cd your-project
+    bd init --quiet
+    ```
+  </Step>
+
+  <Step title="Restart your AI client">
+    Restart Claude Desktop or reload VS Code window for configuration to take effect.
+  </Step>
+</Steps>
+
+## Available Tools
+
+All tools support an optional `workspace_root` parameter for multi-project setups.
+
+| Tool | Description | Example |
+|------|-------------|---------|
+| `beads_init` | Initialize bd in directory | "Initialize beads here" |
+| `beads_create` | Create new issue | "Create a bug for login timeout" |
+| `beads_list` | List issues with filters | "Show all P1 bugs" |
+| `beads_ready` | Find unblocked work | "What can I work on?" |
+| `beads_show` | Show issue details | "Show bd-42" |
+| `beads_update` | Update issue fields | "Set bd-42 to in-progress" |
+| `beads_close` | Close completed issue | "Close bd-42 as done" |
+| `beads_reopen` | Reopen closed issue | "Reopen bd-42" |
+| `beads_dep` | Add dependency | "bd-99 blocks bd-42" |
+| `beads_dep_tree` | Show dependency tree | "What blocks bd-42?" |
+| `beads_blocked` | Get blocked issues | "Show blocked issues" |
+| `beads_stats` | Get project statistics | "Show project stats" |
+| `beads_sync` | Sync to git | "Sync beads to git" |
+| `set_context` | Set default workspace | "Use /path/to/project" |
+
+## Resources
+
+| Resource | Description |
+|----------|-------------|
+| `beads://quickstart` | Quickstart guide for using beads |
+
+## Multi-Repository Setup
+
+### Single MCP Server (Recommended)
+
+Use one MCP server instance for all projects:
+
+```json
+{
+  "mcpServers": {
+    "beads": {
+      "command": "beads-mcp"
+    }
+  }
+}
+```
+
+**How it works:**
+1. MCP server detects the beads project in your current workspace
+2. Routes requests to the per-project Dolt server
+3. Auto-starts local Dolt server if not running
+4. Each project gets isolated database access
+
+**Architecture:**
+```
+MCP Server (one instance)
+    ↓
+Per-Project Dolt Servers (one per workspace)
+    ↓
+Dolt Databases (complete isolation)
+```
+
+### Multi-Project Support
+
+Every tool accepts an optional `workspace_root` parameter:
+
+```python
+# Query issues from different projects concurrently
+results = await asyncio.gather(
+    beads_ready_work(workspace_root="/Users/you/project-a"),
+    beads_ready_work(workspace_root="/Users/you/project-b"),
+)
+
+# Create issue in specific project
+await beads_create_issue(
+    title="Fix auth bug",
+    priority=1,
+    workspace_root="/Users/you/project-a"
+)
+```
+
+### Connection Pool
+
+The MCP server maintains a connection pool keyed by canonical workspace path:
+- Each workspace gets its own Dolt server connection
+- Paths are canonicalized (symlinks resolved, git toplevel detected)
+- Concurrent requests use `asyncio.Lock` to prevent race conditions
+- No LRU eviction (keeps all connections open for session)
+
+## Environment Variables
+
+All optional:
+
+| Variable | Description | Default |
+|----------|-------------|----------|
+| `BEADS_PATH` | Path to bd executable | `~/.local/bin/bd` |
+| `BEADS_DB` | Path to beads database | Auto-discover from cwd |
+| `BEADS_WORKING_DIR` | Working directory | `$PWD` or current directory |
+| `BEADS_ACTOR` | Actor name for audit | `$USER` |
+| `BEADS_NO_AUTO_FLUSH` | Disable auto sync | `false` |
+| `BEADS_NO_AUTO_IMPORT` | Disable auto import | `false` |
+
+## Usage Examples
+
+### Natural Language Queries
+
+```
+You: What issues are ready to work on?
+Claude: [Calls beads_ready]
+There are 3 issues ready:
+1. [P1] bd-42: Fix authentication timeout
+2. [P2] bd-99: Add password reset flow
+3. [P3] bd-17: Update API documentation
+```
+
+### Creating Issues
+
+```
+You: Create a bug for the login timeout
+Claude: [Calls beads_create]
+Created bd-123: Fix login timeout [P1, bug]
+```
+
+### Updating Issues
+
+```
+You: Set bd-42 to in-progress and claim it
+Claude: [Calls beads_update]
+Updated bd-42: status=in-progress, claimed by you
+```
+
+### Tracking Dependencies
+
+```
+You: bd-99 blocks bd-42
+Claude: [Calls beads_dep]
+Added dependency: bd-99 blocks bd-42
+```
+
+### Completing Work
+
+```
+You: Close bd-42 as done
+Claude: [Calls beads_close]
+Closed bd-42: Fix authentication timeout
+
+You: Sync to git
+Claude: [Calls beads_sync]
+Synced 1 issue to git
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="MCP tools not loading">
+    **Check installation:**
+    ```bash
+    which beads-mcp
+    beads-mcp --version
+    ```
+
+    **Verify PATH:**
+    ```bash
+    # If installed with uv
+    export PATH="$HOME/.local/bin:$PATH"
+    
+    # Reinstall if needed
+    uv tool install beads-mcp --force
+    ```
+
+    **Restart client:**
+    - Claude Desktop: Quit and relaunch
+    - VS Code: Reload window (Cmd/Ctrl + Shift + P → "Reload Window")
+  </Accordion>
+
+  <Accordion title="No beads database found">
+    Initialize beads in your project:
+    ```bash
+    cd your-project
+    bd init --quiet
+    ```
+  </Accordion>
+
+  <Accordion title="Wrong database detected">
+    Check current context:
+    ```
+    You: Where am I?
+    Claude: [Calls where_am_i]
+    Workspace: /path/to/project
+    Database: /path/to/project/.beads/prefix.db
+    ```
+
+    Set explicit context:
+    ```
+    You: Use /path/to/correct/project
+    Claude: [Calls set_context]
+    Context set to /path/to/correct/project
+    ```
+  </Accordion>
+
+  <Accordion title="Stale connections">
+    If you see connection issues, restart the Dolt server:
+    ```bash
+    bd dolt stop
+    bd dolt start
+    ```
+
+    The MCP server will automatically reconnect.
+  </Accordion>
+
+  <Accordion title="Version mismatches">
+    Ensure bd and beads-mcp are up to date:
+    ```bash
+    # Update bd
+    brew upgrade beads
+    # or
+    go install github.com/steveyegge/beads/cmd/bd@latest
+
+    # Update beads-mcp
+    uv tool install beads-mcp --upgrade
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Token Overhead Comparison
+
+<Warning>
+MCP adds significant token overhead compared to CLI + hooks.
+</Warning>
+
+| Approach | Token Overhead | Compute Cost | Latency |
+|----------|---------------|--------------|----------|
+| **CLI + Hooks** | ~1-2k tokens | Low | Fast |
+| **MCP Server** | ~10-50k tokens | High (10-50x) | Slower |
+
+**Why the difference?**
+- MCP requires full tool schemas in context
+- Each tool adds 1-5k tokens for schema definition
+- CLI just injects workflow instructions (~1-2k total)
+
+**When context doesn't matter:**
+- Very short conversations
+- MCP-only environments (no alternative)
+
+**When to prefer CLI:**
+- Long conversations or coding sessions
+- Any environment with shell access
+- Multi-editor workflows
+
+## Development
+
+### Run MCP Inspector
+
+```bash
+cd beads/integrations/beads-mcp
+uv run fastmcp dev src/beads_mcp/server.py
+```
+
+### Type Checking
+
+```bash
+uv run mypy src/beads_mcp
+```
+
+### Linting and Formatting
+
+```bash
+uv run ruff check src/beads_mcp
+uv run ruff format src/beads_mcp
+```
+
+### Testing
+
+```bash
+# Run all tests
+uv run pytest
+
+# With coverage
+uv run pytest --cov=beads_mcp tests/
+
+# Multi-repo integration test
+bd dolt start
+uv run python test_multi_repo.py
+```
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Claude Code" icon="code" href="/integrations/claude">
+    Recommended CLI + hooks integration
+  </Card>
+  <Card title="GitHub Copilot" icon="github" href="/integrations/copilot">
+    Use MCP with VS Code Copilot
+  </Card>
+  <Card title="Aider Integration" icon="terminal" href="/integrations/aider">
+    Human-in-the-loop AI pair programming
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Learn Beads basics
+  </Card>
+</CardGroup>

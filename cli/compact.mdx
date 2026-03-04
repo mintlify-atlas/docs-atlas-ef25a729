@@ -1,0 +1,255 @@
+---
+title: bd compact
+description: Semantic memory decay to summarize old issues
+---
+
+## Overview
+
+Compact old closed issues using semantic summarization to reduce database size. This is permanent graceful decay - original content is replaced with AI-generated summaries.
+
+## Syntax
+
+```bash
+bd compact [flags]
+```
+
+## Modes
+
+Compaction operates in three modes:
+
+### Analyze Mode (Recommended)
+
+Export candidates for agent review without requiring an API key:
+
+```bash
+bd compact --analyze --json              # Get candidates with full content
+bd compact --analyze --limit 10 --json   # Limit to 10 candidates
+bd compact --analyze --id bd-42 --json   # Analyze specific issue
+```
+
+### Apply Mode (Recommended)
+
+Accept agent-provided summary without requiring an API key:
+
+```bash
+bd compact --apply --id bd-42 --summary summary.txt
+bd compact --apply --id bd-42 --summary - < summary.txt  # from stdin
+```
+
+### Auto Mode (Legacy)
+
+AI-powered compaction using Claude API (requires `ANTHROPIC_API_KEY`):
+
+```bash
+bd compact --auto --dry-run              # Preview candidates
+bd compact --auto --all                  # Compact all eligible issues
+bd compact --auto --id bd-42             # Compact specific issue
+```
+
+## Compaction Tiers
+
+### Tier 1: Semantic Compression
+- **Eligibility**: 30 days closed
+- **Reduction**: ~70% size reduction
+- **Content**: Detailed summary preserving key context
+
+### Tier 2: Ultra Compression
+- **Eligibility**: 90 days closed, already Tier 1 compacted
+- **Reduction**: ~95% size reduction
+- **Content**: Minimal summary for archival reference
+- **Status**: Not yet implemented
+
+## Dolt Garbage Collection
+
+With auto-commit enabled, Dolt commit history grows over time. Use `--dolt` to run garbage collection:
+
+```bash
+bd compact --dolt                        # Run Dolt GC
+bd compact --dolt --dry-run              # Preview without running GC
+```
+
+This removes unreachable commits and compacts storage to reclaim disk space.
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--analyze` | Export candidates for agent review (no API key needed) |
+| `--apply` | Accept agent-provided summary (no API key needed) |
+| `--auto` | AI-powered compaction (requires ANTHROPIC_API_KEY) |
+| `--summary <path>` | Path to summary file (use '-' for stdin) |
+| `--actor <name>` | Actor name for audit trail (default: "agent") |
+| `--id <issue-id>` | Compact specific issue |
+| `--all` | Process all eligible candidates |
+| `--tier <1\|2>` | Compaction tier (default: 1) |
+| `--limit <n>` | Limit number of candidates (0 = no limit) |
+| `--force` | Bypass eligibility checks (requires --id) |
+| `--dry-run` | Preview without compacting |
+| `--stats` | Show compaction statistics |
+| `--dolt` | Run Dolt garbage collection |
+| `--json` | Output JSON format |
+
+## Examples
+
+### Agent-Driven Workflow
+
+The recommended workflow uses an agent to review and summarize issues:
+
+```bash
+# 1. Export candidates for agent review
+bd compact --analyze --json > candidates.json
+
+# 2. Agent reviews and generates summaries
+# (external agent process)
+
+# 3. Apply the agent's summary
+bd compact --apply --id bd-42 --summary summary.txt
+```
+
+### View Statistics
+
+See how many issues are eligible for compaction:
+
+```bash
+bd compact --stats
+```
+
+Output:
+```
+Compaction Statistics
+Tier 1 (30+ days closed):
+  Candidates: 45
+  Total size: 1234567 bytes
+  Estimated savings: 864197 bytes (70%)
+
+Tier 2 (90+ days closed, Tier 1 compacted):
+  Candidates: 12
+  Total size: 345678 bytes
+  Estimated savings: 328394 bytes (95%)
+```
+
+### Compact Specific Issue
+
+```bash
+# Preview what would be compacted
+bd compact --auto --id bd-42 --dry-run
+
+# Actually compact it
+bd compact --auto --id bd-42
+```
+
+### Batch Compaction
+
+```bash
+# Preview all eligible issues
+bd compact --auto --all --dry-run
+
+# Compact all eligible issues
+bd compact --auto --all
+```
+
+### Dolt Cleanup
+
+After accumulating many commits, run garbage collection:
+
+```bash
+# Check current size
+bd compact --dolt --dry-run
+
+# Run garbage collection
+bd compact --dolt
+```
+
+## When to Use Compact
+
+Use `bd compact` when:
+
+- **Database size is growing**: Old closed issues accumulate over time
+- **Historical context isn't needed**: Issues closed 30+ days ago rarely need full detail
+- **Disk space is limited**: Compaction can reduce database size by 70%+
+- **Dolt history is large**: Frequent auto-commits create many commit objects
+
+Don't use `bd compact` when:
+
+- **Issues might be reopened**: Original content is permanently lost
+- **Legal/compliance requirements**: Some industries require full audit trails
+- **Recent closure**: Wait 30 days before compacting to ensure stability
+
+## How It Works
+
+### Analyze Mode
+
+1. Identifies eligible issues based on tier criteria
+2. Exports full issue content (description, design, notes, acceptance criteria)
+3. Outputs JSON for agent consumption
+4. No database changes
+
+### Apply Mode
+
+1. Validates eligibility (bypass with `--force`)
+2. Replaces all text fields with provided summary
+3. Records compaction metadata (tier, sizes, timestamp)
+4. Adds audit trail event
+5. Preserves issue structure (ID, status, relationships)
+
+### Auto Mode
+
+1. Validates ANTHROPIC_API_KEY is set
+2. For each eligible issue:
+   - Sends content to Claude API
+   - Receives semantic summary
+   - Applies summary via same path as Apply Mode
+3. Shows progress bar for batch operations
+
+### Dolt GC Mode
+
+1. Locates `.beads/dolt` directory
+2. Runs `dolt gc` command
+3. Reports size before/after
+4. Removes unreachable commits
+
+## Troubleshooting
+
+### "Issue not eligible for compaction"
+
+**Cause**: Issue doesn't meet tier criteria (age, status, compaction level)
+
+**Solution**: 
+- Check eligibility with `bd compact --stats`
+- Use `--force` flag to bypass (with caution)
+- Wait until issue meets age requirements
+
+### "ANTHROPIC_API_KEY not set"
+
+**Cause**: Auto mode requires Claude API access
+
+**Solution**:
+- Use Analyze/Apply mode instead (recommended)
+- Or set environment variable: `export ANTHROPIC_API_KEY=sk-...`
+
+### "Dolt directory not found"
+
+**Cause**: `--dolt` flag used in non-Dolt repository
+
+**Solution**: Only use `--dolt` in repositories using Dolt backend
+
+### "Summary not shorter than original"
+
+**Cause**: Provided summary is larger than original content
+
+**Solution**:
+- Review and shorten the summary
+- Use `--force` flag if summary is intentionally longer
+
+## Related Commands
+
+- [`bd show`](/cli/show) - View issue details before compacting
+- [`bd list`](/cli/list) - Find old closed issues to compact
+- [`bd dolt`](/cli/dolt) - Manage Dolt database directly
+- [`bd backup`](/cli/backup) - Back up before compaction
+
+## See Also
+
+- [Database Maintenance Guide](/guides/maintenance)
+- [Dolt Backend Documentation](/setup/dolt)
+- [Issue Lifecycle](/concepts/lifecycle)

@@ -1,0 +1,305 @@
+---
+title: bd mol bond
+description: Bond two formulas, protos, or molecules together
+---
+
+## Overview
+
+The `bd mol bond` command is a polymorphic operation that combines formulas, protos (template issues), or molecules (instantiated workflows) into compound structures. Bonding supports sequential, parallel, and conditional execution patterns.
+
+## Usage
+
+```bash
+# Bond two formulas
+bd mol bond mol-feature mol-deploy
+
+# Bond formula to existing molecule
+bd mol bond mol-review bd-abc123
+
+# Bond with parallel execution
+bd mol bond mol-test mol-lint --type parallel
+
+# Bond with variable substitution
+bd mol bond mol-arm bd-patrol --ref arm-{{name}} --var name=ace
+```
+
+## Arguments
+
+- `<A>` - First operand (formula name or issue ID)
+- `<B>` - Second operand (formula name or issue ID)
+
+## Options
+
+- `--type <type>` - Bond type: `sequential` (default), `parallel`, or `conditional`
+- `--as <title>` - Custom title for compound proto (proto+proto only)
+- `--var key=value` - Variable substitution when spawning protos (can be specified multiple times)
+- `--ephemeral` - Force spawn as vapor (ephemeral, excluded from Dolt sync)
+- `--pour` - Force spawn as liquid (persistent, synced via Dolt)
+- `--ref <pattern>` - Custom child reference with `{{var}}` substitution for dynamic IDs
+- `--dry-run` - Preview what would be created without making changes
+- `--json` - Output results in JSON format
+
+## Bond Types
+
+### Sequential (Default)
+
+Second operand runs after first completes (any outcome):
+
+```bash
+bd mol bond mol-build mol-deploy
+# deploy runs after build completes
+```
+
+### Parallel
+
+Both operands run concurrently:
+
+```bash
+bd mol bond mol-test mol-lint --type parallel
+# test and lint run simultaneously
+```
+
+### Conditional
+
+Second operand runs only if first fails:
+
+```bash
+bd mol bond mol-deploy mol-rollback --type conditional
+# rollback only runs if deploy fails
+```
+
+## Operand Type Combinations
+
+The bond command is polymorphic and handles different operand types:
+
+| A Type  | B Type  | Result                                      |
+|---------|---------|---------------------------------------------|
+| formula | formula | Cook both, create compound proto            |
+| formula | proto   | Cook formula, create compound proto         |
+| formula | mol     | Cook formula, spawn and attach to molecule  |
+| proto   | proto   | Create compound proto (reusable template)   |
+| proto   | mol     | Spawn proto, attach to molecule             |
+| mol     | proto   | Spawn proto, attach to molecule             |
+| mol     | mol     | Join into compound molecule                 |
+
+## Phase Control
+
+By default, spawned protos inherit the target's phase:
+
+- Attaching to persistent molecule → spawns as persistent
+- Attaching to ephemeral wisp → spawns as ephemeral
+
+### Override Phase
+
+```bash
+# Force persistent (even on ephemeral target)
+bd mol bond mol-critical-bug wisp-patrol --pour
+
+# Force ephemeral (even on persistent target)
+bd mol bond mol-temp-check bd-feature --ephemeral
+```
+
+## Dynamic Bonding (Christmas Ornament Pattern)
+
+Use `--ref` for predictable child IDs instead of random hashes:
+
+```bash
+bd mol bond mol-polecat-arm bd-patrol \
+  --ref arm-{{polecat_name}} \
+  --var polecat_name=ace
+
+# Creates: bd-patrol.arm-ace (and children like bd-patrol.arm-ace.capture)
+```
+
+This enables:
+- Readable IDs for debugging
+- Per-worker work tracking
+- Easy reference to specific spawned instances
+
+## Examples
+
+### Create Reusable Compound Proto
+
+Bond two protos for reuse across projects:
+
+```bash
+bd mol bond bd-proto-feature bd-proto-deploy \
+  --as "Feature + Deploy Pipeline"
+
+# Result: new proto that can be instantiated multiple times
+```
+
+### Add Steps to Running Molecule
+
+Attach additional work to an in-progress molecule:
+
+```bash
+# Found a bug during feature development
+bd mol bond mol-bugfix bd-feature-work
+
+# Spawns bugfix steps and attaches to feature molecule
+```
+
+### Parallel Test Execution
+
+Run multiple test suites concurrently:
+
+```bash
+bd mol bond mol-unit-tests bd-epic \
+  --type parallel
+
+bd mol bond mol-integration-tests bd-epic \
+  --type parallel
+
+# unit-tests and integration-tests run simultaneously
+```
+
+### Conditional Rollback
+
+Add automatic rollback on deployment failure:
+
+```bash
+bd mol bond mol-deploy bd-release \
+  --type sequential
+
+bd mol bond mol-rollback bd-release \
+  --type conditional
+
+# Rollback only executes if deploy fails
+```
+
+### Dynamic Per-Worker Arms
+
+Spawn custom work per agent with readable IDs:
+
+```bash
+# Patrol spawns work for multiple agents
+for agent in alice bob charlie; do
+  bd mol bond mol-patrol-arm bd-daily-patrol \
+    --ref arm-{{agent}} \
+    --var agent=$agent \
+    --ephemeral
+done
+
+# Creates:
+#   bd-daily-patrol.arm-alice
+#   bd-daily-patrol.arm-bob
+#   bd-daily-patrol.arm-charlie
+```
+
+### Persist Important Findings
+
+Convert ephemeral discovery to persistent issue:
+
+```bash
+# Found critical bug in ephemeral patrol
+bd mol bond mol-critical-bug wisp-patrol-run --pour
+
+# Bug is now persistent and survives patrol cleanup
+```
+
+## Dry Run
+
+Preview bonding without making changes:
+
+```bash
+bd mol bond mol-test bd-feature --dry-run
+```
+
+Output:
+```
+Dry run: bond mol-test + bd-feature
+  A: Standard test suite (formula → will cook as proto)
+  B: Implement authentication (molecule)
+  Bond type: sequential
+  Result: spawn proto, attach to molecule
+
+  Note: Cooked formulas are ephemeral and deleted after bonding.
+```
+
+## JSON Output
+
+```json
+{
+  "result_id": "bd-abc123",
+  "result_type": "compound_molecule",
+  "bond_type": "sequential",
+  "spawned": 5,
+  "id_mapping": {
+    "step-1": "bd-xyz789",
+    "step-2": "bd-mno456"
+  }
+}
+```
+
+## Use Cases
+
+### Progressive Enhancement
+
+Start with minimal molecule, add capabilities as needed:
+
+```bash
+# Start feature work
+bd mol pour mol-feature --var name=auth
+
+# Add testing
+bd mol bond mol-test-suite bd-feature-auth
+
+# Add documentation
+bd mol bond mol-docs bd-feature-auth
+
+# Add deployment
+bd mol bond mol-deploy bd-feature-auth
+```
+
+### Pipeline Composition
+
+Build complex pipelines from simple formulas:
+
+```bash
+# Create CI pipeline proto
+bd mol bond mol-build mol-test --as "CI Pipeline"
+bd mol bond bd-ci-pipeline mol-security-scan
+bd mol bond bd-ci-pipeline mol-publish
+
+# Reuse across projects
+bd mol pour bd-ci-pipeline --var project=web-app
+```
+
+### Patrol Workflows
+
+Dynamically attach findings to patrol runs:
+
+```bash
+# Patrol discovers performance issue
+bd mol bond mol-perf-investigation wisp-patrol \
+  --ephemeral \
+  --ref finding-{{timestamp}} \
+  --var timestamp=$(date +%s)
+```
+
+## Error Handling
+
+Common errors and solutions:
+
+```bash
+# Missing variables
+bd mol bond mol-deploy bd-feature
+# Error: missing required variables: environment (use --var)
+
+bd mol bond mol-deploy bd-feature --var environment=staging
+# Success
+```
+
+```bash
+# Conflicting phase flags
+bd mol bond mol-test bd-feature --ephemeral --pour
+# Error: cannot use both --ephemeral and --pour
+```
+
+## Related Commands
+
+- [bd mol show](/cli/mol-show) - Display molecule structure
+- [bd mol current](/cli/mol-current) - Show progress in molecule workflow
+- [bd mol pour](/cli/mol-pour) - Instantiate formula as persistent molecule
+- [bd mol wisp](/cli/mol-wisp) - Instantiate formula as ephemeral wisp

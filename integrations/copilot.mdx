@@ -1,0 +1,318 @@
+---
+title: GitHub Copilot Integration
+description: Use Beads with GitHub Copilot through MCP for natural language issue tracking
+---
+
+Beads provides an MCP (Model Context Protocol) server that enables GitHub Copilot to manage issues through natural language commands in VS Code.
+
+<Warning>
+Beads is a system-wide CLI tool. Install it once and use it in any project. **Do NOT clone the beads repository into your project.**
+</Warning>
+
+## Prerequisites
+
+- VS Code 1.96 or later
+- GitHub Copilot extension
+- GitHub Copilot subscription (Individual, Business, or Enterprise)
+- Beads CLI installed
+- Python 3.10+ or uv package manager
+
+## Quick Setup
+
+<Steps>
+  <Step title="Install beads-mcp">
+    Install the MCP server using uv (recommended):
+    ```bash
+    uv tool install beads-mcp
+    ```
+
+    Alternative installation methods:
+    ```bash
+    # Using pip
+    pip install beads-mcp
+
+    # Using pipx
+    pipx install beads-mcp
+    ```
+  </Step>
+
+  <Step title="Configure VS Code MCP">
+    Create or edit `.vscode/mcp.json` in your project:
+
+    ```json
+    {
+      "servers": {
+        "beads": {
+          "command": "beads-mcp"
+        }
+      }
+    }
+    ```
+
+    <Accordion title="Configure for all projects">
+      To use Beads across all projects, add to VS Code user-level MCP config:
+
+      | Platform | Path |
+      |----------|------|
+      | macOS | `~/Library/Application Support/Code/User/mcp.json` |
+      | Linux | `~/.config/Code/User/mcp.json` |
+      | Windows | `%APPDATA%\Code\User\mcp.json` |
+
+      ```json
+      {
+        "servers": {
+          "beads": {
+            "command": "beads-mcp",
+            "args": []
+          }
+        }
+      }
+      ```
+    </Accordion>
+  </Step>
+
+  <Step title="Initialize Beads in your project">
+    Navigate to your project and initialize Beads:
+    ```bash
+    cd your-project
+    bd init --quiet
+    ```
+
+    This creates a `.beads/` directory with the issue database.
+  </Step>
+
+  <Step title="Add Copilot instructions (optional)">
+    Create `.github/copilot-instructions.md` to teach Copilot about Beads:
+
+    ```markdown
+    ## Issue Tracking
+
+    This project uses **bd (beads)** for issue tracking.
+    Run `bd prime` for workflow context.
+
+    **Quick reference:**
+    - `bd ready` - Find unblocked work
+    - `bd create "Title" --type task --priority 2` - Create issue
+    - `bd close <id>` - Complete work
+    - `bd sync` - Sync with git (run at session end)
+    ```
+  </Step>
+
+  <Step title="Restart VS Code">
+    Reload the VS Code window for MCP configuration to take effect:
+
+    - Press `Cmd/Ctrl + Shift + P`
+    - Type "Reload Window"
+    - Press Enter
+  </Step>
+</Steps>
+
+## MCP Tools Reference
+
+With MCP configured, ask Copilot Chat to perform these operations:
+
+| Tool | Description | Example Query |
+|------|-------------|---------------|
+| `beads_ready` | List unblocked issues | "What issues are ready to work on?" |
+| `beads_list` | List issues with filters | "Show all open bugs" |
+| `beads_create` | Create new issue | "Create a task for refactoring" |
+| `beads_show` | Show issue details | "Show bd-42 details" |
+| `beads_update` | Update issue fields | "Set bd-42 to in progress" |
+| `beads_close` | Close an issue | "Complete bd-42" |
+| `beads_sync` | Sync to git | "Sync my changes" |
+| `beads_dep_add` | Add dependency | "bd-99 blocks bd-42" |
+| `beads_dep_tree` | Show dependency tree | "What depends on bd-42?" |
+
+## Example Workflow
+
+### Finding Work
+
+```
+You: What issues are ready to work on?
+
+Copilot: [Calls beads_ready]
+There are 3 issues ready:
+1. [P1] bd-42: Fix authentication timeout
+2. [P2] bd-99: Add password reset flow
+3. [P3] bd-17: Update API documentation
+```
+
+### Claiming an Issue
+
+```
+You: Let me work on bd-42. Claim it.
+
+Copilot: [Calls beads_claim]
+Claimed bd-42 and started work.
+```
+
+### Discovering Related Work
+
+```
+You: I found a related bug - the session token isn't being refreshed.
+     Create a bug for that, linked to bd-42.
+
+Copilot: [Calls beads_create]
+Created bd-103: Session token not refreshed
+Linked as discovered-from bd-42.
+```
+
+### Completing Work
+
+```
+You: Done with bd-42. Close it with reason "Fixed timeout handling"
+
+Copilot: [Calls beads_close]
+Closed bd-42: Fixed timeout handling
+
+You: Sync everything to git
+
+Copilot: [Calls beads_sync]
+Synced: 2 issues updated, committed to git.
+```
+
+## CLI vs MCP: When to Use Each
+
+| Approach | Best For | Trade-offs |
+|----------|----------|------------|
+| **MCP (Copilot Chat)** | Natural language, discovery | Higher token overhead (~10-50k) |
+| **CLI (Terminal)** | Scripting, precision, speed | Requires terminal context (~1-2k) |
+
+<Tip>
+You can use both! MCP for conversational work in Copilot Chat, CLI for quick terminal commands.
+</Tip>
+
+## Troubleshooting
+
+### MCP tools not appearing in Copilot
+
+<AccordionGroup>
+  <Accordion title="Check VS Code version">
+    MCP requires VS Code 1.96 or later:
+    ```bash
+    code --version
+    ```
+  </Accordion>
+
+  <Accordion title="Verify mcp.json syntax">
+    Ensure your JSON is valid:
+    ```bash
+    # macOS/Linux
+    cat .vscode/mcp.json | python -m json.tool
+
+    # Windows
+    type .vscode\mcp.json | python -m json.tool
+    ```
+  </Accordion>
+
+  <Accordion title="Check beads-mcp installation">
+    Verify the MCP server is installed and in PATH:
+    ```bash
+    which beads-mcp
+    beads-mcp --version
+    ```
+  </Accordion>
+
+  <Accordion title="Reload VS Code window">
+    MCP configuration requires a window reload. Press `Cmd/Ctrl + Shift + P`, type "Reload Window", and press Enter.
+  </Accordion>
+
+  <Accordion title="Check Output panel">
+    Open the Output panel in VS Code and look for MCP-related errors:
+    - View → Output
+    - Select "MCP" from the dropdown
+  </Accordion>
+</AccordionGroup>
+
+### "beads-mcp: command not found"
+
+The MCP server isn't in your PATH:
+
+```bash
+# If installed with uv
+export PATH="$HOME/.local/bin:$PATH"
+
+# If installed with pip, find it
+pip show beads-mcp | grep Location
+
+# Reinstall if needed
+uv tool install beads-mcp --force
+```
+
+### "No beads database found"
+
+Initialize Beads in your project:
+
+```bash
+cd your-project
+bd init --quiet
+```
+
+### Changes not persisting
+
+Run sync at end of session:
+
+```bash
+bd sync
+```
+
+Or ask Copilot: "Sync my beads changes to git"
+
+### Organization policies blocking MCP
+
+For Copilot Enterprise, your organization must enable "MCP servers in Copilot" policy. Contact your admin if MCP tools don't appear.
+
+## FAQ
+
+<AccordionGroup>
+  <Accordion title="Do I need to clone the beads repository?">
+    **No.** Beads is a system-wide CLI tool. You install it once (via Homebrew, npm, or pip) and use it in any project. The `.beads/` directory in your project only contains the issue database, not beads itself.
+  </Accordion>
+
+  <Accordion title="What are the git hooks and are they safe?">
+    When you run `bd init`, beads can install git hooks that:
+    - **post-merge**: Import issues when you pull
+    - **pre-push**: Sync issues before you push
+
+    These hooks are safe—they only read/write the `.beads/` directory and never modify your code. You can opt out with `bd init --no-hooks` or skip them during interactive setup.
+  </Accordion>
+
+  <Accordion title="Can I use beads without Copilot?">
+    Yes! Beads works with:
+    - Terminal (direct CLI)
+    - Claude Code
+    - Cursor
+    - Aider
+    - Any editor with MCP or shell access
+  </Accordion>
+
+  <Accordion title="MCP vs CLI - which should I use?">
+    Use **MCP** when you want natural language interaction through Copilot Chat.
+    Use **CLI** when you want speed, scripting, or precise control.
+
+    Both approaches work with the same database—use whichever fits your workflow.
+  </Accordion>
+
+  <Accordion title="Does this work with Copilot in other editors?">
+    This guide is for VS Code. For other editors:
+    - **JetBrains IDEs**: Check if MCP is supported, config may differ
+    - **Neovim**: Use CLI integration instead
+  </Accordion>
+</AccordionGroup>
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="MCP Server Details" icon="server" href="/integrations/mcp">
+    Deep dive into MCP server architecture
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/quickstart">
+    Learn Beads command-line interface
+  </Card>
+  <Card title="Claude Code" icon="code" href="/integrations/claude">
+    Integrate with Claude Code using hooks
+  </Card>
+  <Card title="Aider Integration" icon="robot" href="/integrations/aider">
+    Use Beads with Aider AI pair programming
+  </Card>
+</CardGroup>

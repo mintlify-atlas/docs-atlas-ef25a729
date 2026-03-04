@@ -1,0 +1,354 @@
+---
+title: Agent workflow
+description: How AI agents use Beads for task management and long-horizon work
+---
+
+This guide explains how AI coding agents use Beads to manage tasks, track dependencies, and handle long-horizon work without losing context.
+
+## Why agents need Beads
+
+AI coding agents face unique challenges:
+
+- **Context loss**: Session boundaries and token limits cause agents to forget previous work
+- **No structured planning**: Markdown TODO lists are unstructured and hard to query
+- **No dependency tracking**: Can't determine what's ready to work on
+- **Merge conflicts**: Multiple agents or sessions create conflicting task lists
+
+Beads solves these problems with:
+
+- **Persistent memory**: Dolt-backed database survives sessions and account rotations
+- **Dependency tracking**: Automatically detects ready work with `bd ready`
+- **Zero conflicts**: Hash-based IDs prevent merge collisions
+- **Structured queries**: JSON output for programmatic use
+
+## Basic agent workflow
+
+A typical agent session follows this pattern:
+
+<Steps>
+  <Step title="Check for ready work">
+    Start by finding unblocked tasks:
+    
+    ```bash
+    bd ready --json
+    ```
+    
+    This returns issues with no open blockers, sorted by priority.
+    
+    <Accordion title="Example output">
+    ```json
+    [
+      {
+        "id": "bd-a3f8",
+        "title": "Add authentication",
+        "priority": 0,
+        "status": "open",
+        "created_at": "2026-03-04T10:00:00Z"
+      }
+    ]
+    ```
+    </Accordion>
+  </Step>
+
+  <Step title="Claim the task atomically">
+    Use `--claim` to atomically set assignee and status:
+    
+    ```bash
+    bd update bd-a3f8 --claim --json
+    ```
+    
+    This prevents multiple agents from working on the same task.
+    
+    <Tip>The `--claim` flag sets `assignee=<your-username>` and `status=in_progress` in a single atomic operation.</Tip>
+  </Step>
+
+  <Step title="Work on the task">
+    Implement, test, and document the feature. As you discover new work, create linked issues:
+    
+    ```bash
+    echo 'Found a bug in validation logic' | bd create "Fix validation" --description=- -p 1 --deps discovered-from:bd-a3f8 --json
+    ```
+    
+    The `discovered-from` dependency links the new issue to the parent task.
+  </Step>
+
+  <Step title="Complete the task">
+    When finished, close the issue:
+    
+    ```bash
+    bd close bd-a3f8 --reason "Completed" --json
+    ```
+    
+    Any dependencies on this task are now unblocked.
+  </Step>
+</Steps>
+
+## Discovered work pattern
+
+When agents discover new work during implementation, they should link it to the parent:
+
+```bash
+# Discovered a bug while implementing authentication
+bd create "Fix password hashing" -p 1 --deps discovered-from:bd-a3f8
+
+# Discovered missing tests
+bd create "Add auth integration tests" -t task -p 2 --deps discovered-from:bd-a3f8
+
+# Discovered documentation gap
+bd create "Document auth setup" -t task -p 3 --deps discovered-from:bd-a3f8
+```
+
+This creates a discoverable audit trail showing what work was found during which task.
+
+## Session completion protocol
+
+When ending a work session, agents should:
+
+<Steps>
+  <Step title="File remaining work">
+    Create issues for anything that needs follow-up:
+    
+    ```bash
+    bd create "Add rate limiting to auth" -t feature -p 2 --json
+    bd create "Fix failing CI tests" -t bug -p 0 --json
+    ```
+  </Step>
+
+  <Step title="Update issue status">
+    Close finished work, update in-progress items:
+    
+    ```bash
+    bd close bd-a3f8 bd-b7c2 --reason "Completed"
+    bd update bd-d4f9 --status in_progress --notes "Partially complete, needs tests"
+    ```
+  </Step>
+
+  <Step title="Push to remote">
+    Ensure all changes are pushed:
+    
+    ```bash
+    git pull --rebase
+    git push
+    git status  # Verify "up to date with origin"
+    ```
+    
+    <Warning>Never end a session without pushing. Unpushed work causes conflicts for other agents.</Warning>
+  </Step>
+
+  <Step title="Provide handoff context">
+    Choose next work and provide context:
+    
+    ```bash
+    bd ready --json
+    bd show bd-next --json
+    ```
+    
+    Return a summary and prompt for the next session:
+    
+    > "Continue work on bd-d4f9: Add rate limiting. Authentication is complete (bd-a3f8), need to implement rate limiting middleware and tests."
+  </Step>
+</Steps>
+
+## Using bd prime for context
+
+The `bd prime` command generates a context dump for agents:
+
+```bash
+bd prime
+```
+
+This outputs:
+- Ready work (unblocked tasks)
+- Current work (in-progress issues)
+- Recent activity
+- Project statistics
+- Stored memories (from `bd remember`)
+
+Agents can use this at session start to understand project state.
+
+<Accordion title="Example bd prime output">
+```
+BEADS PRIME CONTEXT
+===================
+
+READY WORK (3 issues)
+- bd-a3f8: Add authentication [P0]
+- bd-b7c2: Fix validation bug [P1]
+- bd-d4f9: Document API endpoints [P2]
+
+CURRENT WORK (1 issue)
+- bd-f6k1: Implement rate limiting [P1] (assigned to agent-1)
+
+RECENT ACTIVITY
+- bd-c5m8 closed: "Add user registration" (2h ago)
+- bd-d4f9 created: "Document API endpoints" (3h ago)
+
+PROJECT STATS
+- Open: 12 issues
+- Blocked: 4 issues
+- In Progress: 1 issue
+
+MEMORIES
+- api-testing: "Use pytest-asyncio for async tests, not unittest"
+- database-migrations: "Run migrations in transaction for rollback on failure"
+```
+</Accordion>
+
+## Non-interactive commands only
+
+<Warning>Never use `bd edit` - it opens an interactive editor that agents cannot use.</Warning>
+
+Always use `bd update` with flags:
+
+```bash
+# Update description
+bd update bd-a3f8 --description "New description"
+
+# Update with stdin for special characters
+echo 'Description with `backticks` and "quotes"' | bd update bd-a3f8 --description=-
+
+# Update multiple fields
+bd update bd-a3f8 --title "New title" --priority 0 --notes "Additional notes"
+```
+
+## Agent-specific flags
+
+Always use these flags for programmatic use:
+
+- `--json`: Machine-readable output
+- `--quiet`: Suppress progress messages
+- `--no-color`: Disable color codes
+- `--claim`: Atomically claim tasks
+
+```bash
+# Good agent commands
+bd ready --json --quiet
+bd create "Task" -p 1 --json
+bd update bd-a3f8 --claim --json --quiet
+
+# Bad agent commands (missing flags)
+bd ready  # Human-readable output, hard to parse
+bd create "Task" -p 1  # No JSON output
+bd update bd-a3f8 --status in_progress --assignee me  # Not atomic
+```
+
+## Multi-agent coordination
+
+When multiple agents work on the same project:
+
+### Use atomic claim
+
+Always claim with `--claim` to prevent conflicts:
+
+```bash
+# Agent 1
+bd update bd-a3f8 --claim  # Successfully claims
+
+# Agent 2 (simultaneously)
+bd update bd-a3f8 --claim  # Fails: already assigned
+```
+
+### Sync frequently
+
+Pull before checking ready work:
+
+```bash
+git pull --rebase
+bd ready --json
+```
+
+Push after completing work:
+
+```bash
+bd close bd-a3f8 --reason "Done"
+git push
+```
+
+### Use dependencies to coordinate
+
+Block dependent work:
+
+```bash
+# Agent 1 working on bd-a3f8 (auth)
+bd create "Add auth middleware" -p 1 --deps blocks:bd-a3f8
+
+# Agent 2 sees bd-a3f8 is not ready (blocked)
+bd ready --json  # bd-a3f8 not in list
+```
+
+## Error handling
+
+Agents should handle common errors:
+
+### Issue already claimed
+
+```bash
+bd update bd-a3f8 --claim
+# Error: Issue already assigned to agent-1
+
+# Find other ready work
+bd ready --json
+```
+
+### Merge conflicts
+
+```bash
+git push
+# Error: merge conflict
+
+git pull --rebase
+# Resolve conflicts (Dolt handles cell-level merge)
+git push
+```
+
+### Database locked
+
+```bash
+bd create "Task" -p 1
+# Error: database locked
+
+# Retry with exponential backoff
+sleep 1 && bd create "Task" -p 1
+```
+
+## Integration with Claude, Copilot, Aider
+
+See the [Integrations](/integrations/claude) section for tool-specific setup:
+
+<CardGroup cols={2}>
+  <Card title="Claude" icon="message" href="/integrations/claude">
+    CLI + hooks approach with automatic context injection
+  </Card>
+  <Card title="Copilot" icon="robot" href="/integrations/copilot">
+    MCP server for GitHub Copilot and VS Code
+  </Card>
+  <Card title="Aider" icon="terminal" href="/integrations/aider">
+    Human-in-the-loop workflow with /run commands
+  </Card>
+</CardGroup>
+
+## Best practices
+
+### Do
+
+- ✅ Always use `--json` for programmatic output
+- ✅ Use `--claim` for atomic task assignment
+- ✅ Link discovered work with `discovered-from`
+- ✅ Check `bd ready` before asking for work
+- ✅ Push frequently to avoid conflicts
+- ✅ Use `bd prime` for session context
+
+### Don't
+
+- ❌ Don't use `bd edit` (interactive)
+- ❌ Don't parse human-readable output
+- ❌ Don't forget to push at session end
+- ❌ Don't create duplicate tracking (markdown TODOs)
+- ❌ Don't skip `--claim` when starting work
+
+## See also
+
+- [Quickstart](/quickstart) - Get started with Beads
+- [CLI Reference](/cli/overview) - Complete command reference
+- [Integrations](/integrations/claude) - Tool-specific setup
+- [Molecules](/guides/molecules) - Advanced workflow management

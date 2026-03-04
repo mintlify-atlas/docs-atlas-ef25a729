@@ -1,0 +1,327 @@
+---
+title: 'bd create'
+description: 'Create new issues with rich metadata and dependencies'
+---
+
+## Usage
+
+```bash
+bd create [title] [flags]
+bd create --file issues.md
+```
+
+## Description
+
+Create a new issue with title, description, priority, type, labels, and dependencies. Issues can be created individually or in bulk from markdown files.
+
+## Parameters
+
+<ParamField path="title" type="string">
+  Issue title (required unless using `--file`). Can be provided as positional argument or via `--title` flag.
+</ParamField>
+
+### Core Flags
+
+<ParamField path="--title" type="string">
+  Issue title (alternative to positional argument)
+</ParamField>
+
+<ParamField path="--description" type="string">
+  Detailed description of the issue. Use `-` to read from stdin for descriptions with special characters.
+</ParamField>
+
+<ParamField path="--priority" type="string" default="2">
+  Priority level: 0-4 or P0-P4 (P0=critical, P4=backlog)
+</ParamField>
+
+<ParamField path="--type" type="string" default="task">
+  Issue type: `bug`, `feature`, `task`, `epic`, `chore`, `decision`. Aliases: `feat`→`feature`, `dec`/`adr`→`decision`
+</ParamField>
+
+<ParamField path="--assignee" type="string">
+  Assign issue to user
+</ParamField>
+
+<ParamField path="--labels" type="string[]">
+  Comma-separated labels. Repeatable flag.
+</ParamField>
+
+### Extended Fields
+
+<ParamField path="--design" type="string">
+  Design notes and technical approach
+</ParamField>
+
+<ParamField path="--acceptance" type="string">
+  Acceptance criteria for completion
+</ParamField>
+
+<ParamField path="--notes" type="string">
+  Additional notes and context
+</ParamField>
+
+<ParamField path="--spec-id" type="string">
+  Link to specification document
+</ParamField>
+
+<ParamField path="--estimate" type="integer">
+  Time estimate in minutes (e.g., 60 for 1 hour)
+</ParamField>
+
+### Dependencies
+
+<ParamField path="--deps" type="string[]">
+  Dependencies in format `type:id` or just `id` for blocks type. Examples: `blocks:bd-20`, `discovered-from:bd-15`
+</ParamField>
+
+<ParamField path="--parent" type="string">
+  Parent issue ID for hierarchical child (e.g., `bd-abc`). Creates parent-child dependency automatically.
+</ParamField>
+
+<ParamField path="--waits-for" type="string">
+  Spawner issue ID to wait for (creates waits-for dependency for fanout gate)
+</ParamField>
+
+<ParamField path="--waits-for-gate" type="string" default="all-children">
+  Gate type: `all-children` (wait for all) or `any-children` (wait for first)
+</ParamField>
+
+### Time Scheduling
+
+<ParamField path="--due" type="string">
+  Due date/time. Formats: `+6h`, `+1d`, `+2w`, `tomorrow`, `next monday`, `2025-01-15`
+</ParamField>
+
+<ParamField path="--defer" type="string">
+  Defer until date (issue hidden from `bd ready` until then). Same formats as `--due`
+</ParamField>
+
+### Advanced Options
+
+<ParamField path="--id" type="string">
+  Explicit issue ID (e.g., `bd-42` for partitioning)
+</ParamField>
+
+<ParamField path="--rig" type="string">
+  Create issue in a different rig (e.g., `--rig beads`)
+</ParamField>
+
+<ParamField path="--prefix" type="string">
+  Create issue in rig by prefix (e.g., `--prefix bd-` or `--prefix beads`)
+</ParamField>
+
+<ParamField path="--metadata" type="string">
+  Set custom metadata (JSON string or `@file.json` to read from file)
+</ParamField>
+
+<ParamField path="--ephemeral" type="boolean">
+  Create as ephemeral (short-lived, subject to TTL compaction)
+</ParamField>
+
+<ParamField path="--dry-run" type="boolean">
+  Preview what would be created without actually creating
+</ParamField>
+
+<ParamField path="--silent" type="boolean">
+  Output only the issue ID (for scripting)
+</ParamField>
+
+<ParamField path="--json" type="boolean">
+  Output JSON for agent use
+</ParamField>
+
+## Examples
+
+### Basic Creation
+
+<CodeGroup>
+```bash Simple
+bd create "Fix login bug" \
+  --description="Users cannot log in after password reset" \
+  --type bug \
+  --priority 1 \
+  --json
+```
+
+```bash With Labels
+bd create "Add dark mode" \
+  --description="Implement dark theme for UI" \
+  --type feature \
+  --labels ui,accessibility \
+  --estimate 180 \
+  --json
+```
+
+```bash With Dependencies
+bd create "Deploy to production" \
+  --description="Deploy v2.0 release" \
+  --type task \
+  --deps blocks:bd-123,blocks:bd-124 \
+  --json
+```
+</CodeGroup>
+
+### Time-Based Scheduling
+
+<CodeGroup>
+```bash Due Date
+bd create "Review Q4 metrics" \
+  --description="Quarterly business review" \
+  --due "next friday" \
+  --json
+```
+
+```bash Deferred Task
+bd create "Update dependencies" \
+  --description="Quarterly dependency updates" \
+  --defer "+30d" \
+  --json
+```
+</CodeGroup>
+
+### Hierarchical Issues
+
+<CodeGroup>
+```bash Parent-Child
+# Create parent epic
+bd create "User authentication" --type epic --json
+
+# Create child task
+bd create "Implement OAuth" \
+  --parent bd-abc \
+  --type task \
+  --json
+```
+
+```bash Auto-Generated Child ID
+bd create "Subtask" --parent bd-abc --json
+# Creates bd-abc.1, bd-abc.2, etc.
+```
+</CodeGroup>
+
+### Cross-Rig Creation
+
+<CodeGroup>
+```bash Create in Different Rig
+bd create "Configure monitoring" \
+  --rig gastown \
+  --description="Set up alerting" \
+  --json
+```
+
+```bash Auto-Routing by Prefix
+bd create "Task" \
+  --id gt-xyz \
+  --description="Auto-routes to gastown rig" \
+  --json
+```
+</CodeGroup>
+
+### Special Characters in Descriptions
+
+<CodeGroup>
+```bash Stdin Input
+echo 'Description with `backticks` and "quotes"' | \
+  bd create "Title" --description=- --json
+```
+
+```bash From File
+cat description.txt | \
+  bd create "Issue title" --description=- --json
+```
+</CodeGroup>
+
+### Bulk Creation
+
+```bash
+bd create --file issues.md
+```
+
+Markdown format:
+```markdown
+# Issue Title 1
+Description for first issue
+
+## Design
+Technical approach
+
+---
+
+# Issue Title 2  
+Description for second issue
+```
+
+## JSON Output
+
+With `--json` flag:
+
+```json
+{
+  "id": "bd-abc123",
+  "title": "Fix login bug",
+  "description": "Users cannot log in after password reset",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "created_at": "2025-01-15T10:30:00Z",
+  "created_by": "agent-name",
+  "owner": "project-name"
+}
+```
+
+## Validation
+
+### Template Validation
+
+Use `--validate` to enforce issue type templates:
+
+```bash
+bd create "Bug report" \
+  --type bug \
+  --validate \
+  --description="Missing required sections" \
+  --json
+# Error: bug template requires: Steps to Reproduce, Expected, Actual
+```
+
+### Prefix Validation
+
+Explicit IDs must match database prefix:
+
+```bash
+bd create "Task" --id gt-xyz --json
+# Error: prefix 'gt-' not allowed (database uses 'bd-')
+# Use --force to override
+```
+
+## Best Practices
+
+### For Agents
+
+1. **Always use `--json`** for programmatic parsing
+2. **Add `--silent`** when only the ID is needed
+3. **Use `--deps discovered-from:parent-id`** to link discovered work
+4. **Set `--priority`** based on urgency and impact
+
+### For Humans
+
+1. **Write descriptive titles** that summarize the issue
+2. **Include context** in the description (why, not just what)
+3. **Add labels** for categorization and filtering
+4. **Link dependencies** to track blocking relationships
+
+### Warnings
+
+The CLI will warn you about:
+
+- Creating issues without descriptions
+- Test issues in production database
+- Defer dates in the past
+- Creating child of non-existent parent
+
+## Related Commands
+
+- [`bd update`](/cli/update) - Modify existing issues
+- [`bd show`](/cli/show) - View issue details
+- [`bd dep add`](/cli/dep) - Add dependencies after creation
+- [`bd list`](/cli/list) - Search for similar issues

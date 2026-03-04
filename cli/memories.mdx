@@ -1,0 +1,299 @@
+---
+title: "bd memories"
+description: "List or search persistent memories across your project"
+---
+
+## Overview
+
+The `bd memories` command lists all stored memories or searches them by keyword. It helps you discover what knowledge has been saved and find specific insights quickly.
+
+**Added in:** v0.58.0
+
+## Syntax
+
+```bash
+bd memories
+bd memories [search-term]
+```
+
+## Arguments
+
+<ParamField path="search-term" type="string" optional>
+  Optional keyword or phrase to filter memories. Searches both memory keys and content (case-insensitive).
+</ParamField>
+
+## How It Works
+
+The command queries the key-value store for all entries with the `kv.memory.` prefix. When a search term is provided, it filters memories where either:
+
+- The memory key contains the search term
+- The memory content contains the search term
+
+Matching is case-insensitive for better usability.
+
+## Output Format
+
+Memories are displayed in alphabetical order by key with:
+
+- **Key** - The memory identifier (shown on its own line)
+- **Content** - The stored insight (indented, truncated at 120 characters)
+
+The output includes a count of total memories found.
+
+## Examples
+
+### List All Memories
+
+View everything you've stored:
+
+```bash
+bd memories
+```
+
+Output:
+```
+Memories (4):
+
+  api-test-setup
+    This repo's API tests require STAGING_API_KEY env var
+
+  auth-jwt
+    Auth module uses JWT not sessions. Token expiry is 24h. Refresh tokens stored in Redis.
+
+  docker-version
+    Deploy script needs Docker 24+ for BuildKit features
+
+  dolt-phantoms
+    Dolt phantom DBs hide in three places: ~/.dolt, .dolt-data, and server catalog
+```
+
+### Search by Keyword
+
+Find memories about a specific topic:
+
+```bash
+bd memories dolt
+```
+
+Output:
+```
+Memories matching "dolt":
+
+  dolt-phantoms
+    Dolt phantom DBs hide in three places: ~/.dolt, .dolt-data, and server catalog
+```
+
+### Search by Phrase
+
+Use quotes for multi-word searches:
+
+```bash
+bd memories "race flag"
+```
+
+Output:
+```
+Memories matching "race flag":
+
+  test-race-detector
+    always run tests with -race flag to catch concurrency bugs
+```
+
+### Search Matches Content
+
+Search finds matches in both keys and content:
+
+```bash
+bd memories JWT
+```
+
+Output:
+```
+Memories matching "JWT":
+
+  auth-jwt
+    Auth module uses JWT not sessions. Token expiry is 24h.
+```
+
+Note: The key doesn't contain "JWT" (lowercase), but the content does, so it matches.
+
+### No Results
+
+When no memories match:
+
+```bash
+bd memories kubernetes
+```
+
+Output:
+```
+No memories matching "kubernetes"
+```
+
+When no memories exist at all:
+
+```bash
+bd memories
+```
+
+Output:
+```
+No memories stored. Use 'bd remember "insight"' to add one.
+```
+
+## JSON Output
+
+For programmatic access, add the `--json` flag:
+
+```bash
+bd memories --json
+```
+
+Output:
+```json
+{
+  "api-test-setup": "This repo's API tests require STAGING_API_KEY env var",
+  "auth-jwt": "Auth module uses JWT not sessions. Token expiry is 24h.",
+  "docker-version": "Deploy script needs Docker 24+ for BuildKit features",
+  "dolt-phantoms": "Dolt phantom DBs hide in three places: ~/.dolt, .dolt-data, and server catalog"
+}
+```
+
+With search:
+```bash
+bd memories dolt --json
+```
+
+Output:
+```json
+{
+  "dolt-phantoms": "Dolt phantom DBs hide in three places: ~/.dolt, .dolt-data, and server catalog"
+}
+```
+
+Empty results:
+```bash
+bd memories nonexistent --json
+```
+
+Output:
+```json
+{}
+```
+
+## Use Cases
+
+### Quick Reference
+
+Find that configuration detail you stored weeks ago:
+
+```bash
+bd memories staging
+# Shows all staging-related memories
+```
+
+### Knowledge Discovery
+
+Browse all stored knowledge before starting work:
+
+```bash
+bd memories
+# Review everything before making changes
+```
+
+### Preventing Duplicates
+
+Check if you've already stored similar knowledge:
+
+```bash
+bd memories "docker version"
+# See if docker requirements are already documented
+```
+
+### Agent Context Building
+
+AI agents can use this to gather project-specific knowledge:
+
+```bash
+# Agent workflow:
+# 1. Check for relevant memories
+bd memories api
+bd memories test
+
+# 2. Use insights to inform implementation
+# 3. Store new learnings
+bd remember "API rate limit is 1000 req/min" --key api-rate-limit
+```
+
+### Audit Trail
+
+Review what knowledge has been accumulated:
+
+```bash
+bd memories --json | jq 'keys'
+# Get list of all memory keys
+
+bd memories --json | jq 'to_entries | length'
+# Count total memories
+```
+
+## Agent Workflow
+
+AI agents should use `bd memories` to:
+
+1. **Check existing knowledge** before asking questions
+2. **Avoid duplicate storage** by searching first
+3. **Build context** for unfamiliar projects
+4. **Validate assumptions** against stored insights
+
+Example agent pattern:
+
+```bash
+# Before working on auth code:
+bd memories auth
+# Oh! JWT tokens with 24h expiry - good to know
+
+# Before deploying:
+bd memories deploy
+# Reminder: Docker 24+ required
+```
+
+## Sorting and Display
+
+Memories are always sorted alphabetically by key for consistency. The content is truncated at 120 characters to keep the list readable. To see full content, use:
+
+```bash
+bd recall <key>  # See full content of specific memory
+```
+
+## Related Commands
+
+- [`bd remember`](/cli/remember) - Store a new memory
+- [`bd recall`](/cli/recall) - Retrieve full content of a specific memory
+- [`bd forget`](/cli/forget) - Delete a memory
+- `bd prime` - Inject all memories into AI context (auto-called by hooks)
+
+## Tips
+
+<Tip>
+  Run `bd memories` at the start of each session to refresh your knowledge of project-specific details.
+</Tip>
+
+<Tip>
+  Use broad search terms first, then narrow down:
+  ```bash
+  bd memories test    # See all test-related memories
+  bd memories "race"  # Narrow to race detector
+  ```
+</Tip>
+
+<Note>
+  Memories are sorted alphabetically by key, not by creation date. Use descriptive key prefixes to group related memories:
+  - `test-*` for testing insights
+  - `deploy-*` for deployment notes
+  - `api-*` for API details
+</Note>
+
+<Warning>
+  Search is case-insensitive but matches substrings. Searching for "test" will match "test-race", "latest-build", and "contest-winner".
+</Warning>

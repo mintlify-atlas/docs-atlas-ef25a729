@@ -1,0 +1,246 @@
+---
+title: Claude Code Integration
+description: Integrate Beads with Claude Code using CLI hooks for efficient context injection
+---
+
+Beads integrates seamlessly with Claude Code through a lightweight CLI + hooks approach, providing workflow context without the overhead of MCP tool schemas.
+
+## Why CLI + Hooks?
+
+Claude Code integration uses `bd prime` and hooks instead of MCP for better efficiency:
+
+- **Lower token overhead**: ~1-2k tokens vs 10-50k for MCP schemas
+- **Reduced compute cost**: Fewer tokens means less processing per inference
+- **Better latency**: Smaller prompts process faster
+- **Universal compatibility**: Works in any environment with shell access
+
+<Note>
+For MCP-only environments like Claude Desktop, see the [MCP Server](/integrations/mcp) documentation.
+</Note>
+
+## Installation
+
+<Steps>
+  <Step title="Install Claude Code hooks">
+    Install hooks globally (for all projects):
+    ```bash
+    bd setup claude
+    ```
+
+    Or install for the current project only:
+    ```bash
+    bd setup claude --project
+    ```
+
+    <Accordion title="What gets installed?">
+      - **SessionStart hook**: Runs `bd prime` when Claude Code starts a session
+      - **PreCompact hook**: Runs `bd prime` before context compaction to preserve workflow instructions
+    </Accordion>
+  </Step>
+
+  <Step title="Verify installation">
+    Check that hooks are properly installed:
+    ```bash
+    bd setup claude --check
+    ```
+
+    You should see confirmation that both hooks are installed.
+  </Step>
+
+  <Step title="Start using Claude Code">
+    Launch Claude Code in your project directory. The hooks will automatically inject Beads workflow context at the start of each session.
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Stealth Mode
+
+Use stealth mode to flush context without git operations:
+
+```bash
+bd setup claude --stealth
+```
+
+This is useful if you want context injection without automatic git sync behavior.
+
+### Remove Hooks
+
+To uninstall Claude Code hooks:
+
+```bash
+bd setup claude --remove
+```
+
+## How It Works
+
+### Automatic Context Injection
+
+When you start a Claude Code session, the SessionStart hook automatically runs:
+
+```bash
+bd prime
+```
+
+This injects ~1-2k tokens of workflow context, including:
+- Available bd commands
+- Issue tracking workflow
+- Priority levels and issue types
+- Best practices for AI agents
+
+### Context Preservation
+
+Before Claude Code compacts context (to manage token limits), the PreCompact hook runs `bd prime` again, ensuring workflow instructions persist throughout long sessions.
+
+## Usage Examples
+
+### Starting Work
+
+Simply ask Claude Code:
+
+```
+What issues are ready to work on?
+```
+
+Claude will run:
+```bash
+bd ready
+```
+
+### Creating Issues
+
+```
+Create a bug for the login timeout issue
+```
+
+Claude will run:
+```bash
+bd create "Fix login timeout" --description="Users experiencing timeouts..." -t bug -p 1
+```
+
+### Updating Issues
+
+```
+Claim bd-42 and start working on it
+```
+
+Claude will run:
+```bash
+bd update bd-42 --claim
+```
+
+### Completing Work
+
+```
+Close bd-42 as completed
+```
+
+Claude will run:
+```bash
+bd close bd-42 --reason "Implemented fix and added tests"
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Let hooks do the work" icon="bolt">
+    Don't manually run `bd prime` - the hooks inject context automatically
+  </Card>
+  <Card title="Use natural language" icon="message">
+    Claude understands your intent - describe what you want in plain English
+  </Card>
+  <Card title="Trust the workflow" icon="check">
+    Claude knows the bd workflow from context injection
+  </Card>
+  <Card title="Review before push" icon="eye">
+    Always review Claude's changes before running `bd sync`
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Hooks not running
+
+**Check hook installation:**
+```bash
+bd setup claude --check
+```
+
+**Reinstall hooks:**
+```bash
+bd setup claude --remove
+bd setup claude
+```
+
+### Claude not using bd commands
+
+**Manually inject context:**
+```bash
+bd prime
+```
+
+Copy the output and paste it into your Claude Code session.
+
+**Verify bd is in PATH:**
+```bash
+which bd
+bd --version
+```
+
+### Context gets lost during long sessions
+
+The PreCompact hook should prevent this, but if context is lost:
+
+1. Check that the PreCompact hook is installed:
+   ```bash
+   bd setup claude --check
+   ```
+
+2. Manually run `bd prime` to reinject context
+
+### Wrong database detected
+
+Bd uses tree-walking to find the `.beads/` directory. Ensure you're in the correct project directory:
+
+```bash
+bd doctor
+```
+
+This shows which database bd will use.
+
+## CLI vs MCP Comparison
+
+| Approach | Token Overhead | Best For | Compute Cost |
+|----------|---------------|----------|-------------|
+| **CLI + Hooks** | ~1-2k tokens | Claude Code, Cursor, Windsurf | Low |
+| **MCP Server** | ~10-50k tokens | Claude Desktop (MCP-only) | High |
+
+<Tip>
+Always prefer CLI + hooks when shell access is available. It's 10-50x more efficient.
+</Tip>
+
+## Related Files
+
+For developers extending Beads:
+
+- `cmd/bd/prime.go` - Context generation logic
+- `cmd/bd/setup/claude.go` - Hook installation code
+- `cmd/bd/doctor/claude.go` - Integration verification
+- `docs/CLAUDE.md` - General Claude Code guidance
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="MCP Server" icon="server" href="/integrations/mcp">
+    Alternative integration for MCP-only environments
+  </Card>
+  <Card title="Copilot Integration" icon="github" href="/integrations/copilot">
+    Use Beads with GitHub Copilot in VS Code
+  </Card>
+  <Card title="Aider Integration" icon="terminal" href="/integrations/aider">
+    Integrate with Aider for AI pair programming
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get started with Beads basics
+  </Card>
+</CardGroup>

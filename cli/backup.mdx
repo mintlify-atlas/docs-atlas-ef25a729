@@ -1,0 +1,396 @@
+---
+title: bd backup
+description: Back up and restore your beads database
+---
+
+## Overview
+
+Back up your beads database for off-machine recovery. Supports both JSONL exports (portable, git-friendly) and Dolt-native backups (preserves history, faster for large databases).
+
+## Syntax
+
+```bash
+bd backup [subcommand] [flags]
+```
+
+## Backup Methods
+
+### JSONL Export (Default)
+
+Without a subcommand, exports all tables to JSONL files in `.beads/backup/`:
+
+```bash
+bd backup
+bd backup --force    # Export even if nothing changed
+```
+
+Exports:
+- `issues.jsonl` - All issues
+- `events.jsonl` - Issue events (incremental)
+- `comments.jsonl` - Comments
+- `dependencies.jsonl` - Dependency relationships
+- `labels.jsonl` - Label associations
+- `config.jsonl` - Configuration values
+- `state.json` - Backup metadata
+
+### Dolt-Native Backup (Recommended)
+
+For Dolt backends, use Dolt remotes for full history preservation:
+
+```bash
+# Setup backup destination
+bd backup init <path>
+bd backup init https://doltremoteapi.dolthub.com/user/repo
+
+# Push to backup
+bd backup sync
+```
+
+Advantages:
+- Preserves full commit history
+- Faster for large databases
+- Native Dolt replication
+- Branch and tag support
+
+## Subcommands
+
+### init
+
+Set up a backup destination:
+
+```bash
+bd backup init <path>
+```
+
+Supports:
+- **Filesystem**: `file:///path/to/backup`
+- **DoltHub**: `https://doltremoteapi.dolthub.com/user/repo`
+- **SSH**: `ssh://user@host/path/to/repo`
+
+**DoltHub Example:**
+
+```bash
+export DOLT_REMOTE_USER=myusername
+export DOLT_REMOTE_PASSWORD=my_token
+bd backup init https://doltremoteapi.dolthub.com/myusername/myrepo
+```
+
+### sync
+
+Push to configured backup destination:
+
+```bash
+bd backup sync
+```
+
+Pushes current database state to the remote configured with `bd backup init`.
+
+### status
+
+Show backup status (JSONL + Dolt):
+
+```bash
+bd backup status
+bd backup status --json
+```
+
+Displays:
+- Last JSONL backup timestamp
+- JSONL backup counts
+- Dolt backup configuration
+- Database size
+- Auto-backup settings
+
+### restore
+
+Restore from JSONL backup files:
+
+```bash
+bd backup restore [path]
+```
+
+Restores database from JSONL files in `.beads/backup/` or specified path.
+
+## Auto-Backup Configuration
+
+Configure automatic backups via `config.yaml`:
+
+```yaml
+backup:
+  enabled: true              # Auto-backup on mutations (default: auto-detect)
+  interval: 1h               # Backup frequency (default: 1h)
+  git-push: true             # Push to git after backup (default: auto-detect)
+  git-repo: origin           # Git remote name (default: origin)
+```
+
+**Auto-detection:**
+
+- `enabled`: Defaults to `true` if git remote exists
+- `git-push`: Defaults to `true` if git remote exists
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Export even if nothing changed |
+| `--json` | Output JSON format |
+
+## Examples
+
+### Manual JSONL Backup
+
+```bash
+bd backup
+```
+
+Output:
+```
+Backup complete: 150 issues, 1234 events, 567 comments, 89 deps, 45 labels, 12 config
+```
+
+### View Backup Status
+
+```bash
+bd backup status
+```
+
+Output:
+```
+JSONL Backup:
+  Last backup: 2024-03-04T10:30:00Z (2 hours ago)
+  Dolt commit: abc123def456
+  Counts: 150 issues, 1234 events, 567 comments, 89 deps, 45 labels, 12 config
+
+Config: enabled=true interval=1h git-push=true
+
+Dolt Backup:
+  Remote: backup
+  URL: https://doltremoteapi.dolthub.com/user/repo
+  Last push: 2024-03-04T10:30:00Z (2 hours ago)
+  Status: ✓ in sync
+
+Database Size:
+  .beads/dolt/beads: 45.2 MB
+```
+
+### Setup DoltHub Backup
+
+```bash
+# Configure credentials
+export DOLT_REMOTE_USER=myusername
+export DOLT_REMOTE_PASSWORD=my_token_from_dolthub
+
+# Initialize backup remote
+bd backup init https://doltremoteapi.dolthub.com/myusername/myrepo
+
+# First backup
+bd backup sync
+
+# Verify
+bd backup status
+```
+
+### Setup Filesystem Backup
+
+```bash
+# Local directory
+bd backup init file:///mnt/backup/beads
+
+# Network share
+bd backup init file:///Volumes/Backups/beads
+
+# Push backup
+bd backup sync
+```
+
+### Restore from Backup
+
+**From JSONL:**
+
+```bash
+# In place
+bd backup restore
+
+# From specific location
+bd backup restore /path/to/backup
+```
+
+**From Dolt remote:**
+
+```bash
+# Initialize new repository
+bd init
+
+# Configure backup remote
+bd dolt remote add backup https://doltremoteapi.dolthub.com/user/repo
+
+# Pull from backup
+bd dolt pull backup
+```
+
+### Auto-Backup Configuration
+
+**Enable auto-backup:**
+
+```bash
+bd config set backup.enabled true
+bd config set backup.interval 30m
+```
+
+**Disable git push:**
+
+```bash
+bd config set backup.git-push false
+```
+
+**Verify settings:**
+
+```bash
+bd backup status
+```
+
+### Force Backup (Testing)
+
+```bash
+bd backup --force
+```
+
+Exports even if no changes since last backup.
+
+## Backup Strategies
+
+### Local Development
+
+JSONL backups are sufficient:
+
+```yaml
+backup:
+  enabled: true
+  interval: 1h
+  git-push: true
+```
+
+### Team Collaboration
+
+Use Dolt remote for shared backup:
+
+```bash
+# Each team member
+bd backup init https://doltremoteapi.dolthub.com/team/project
+bd backup sync  # After significant work
+```
+
+### Production/Critical Data
+
+Multiple backup methods:
+
+```bash
+# 1. JSONL for portability
+bd backup
+
+# 2. Dolt remote for history
+bd backup sync
+
+# 3. Git push for version control
+git add .beads/backup/
+git commit -m "Backup: 2024-03-04"
+git push
+```
+
+### Disaster Recovery
+
+Regular offsite backups:
+
+```bash
+# Setup backup remote
+bd backup init https://doltremoteapi.dolthub.com/user/backup
+
+# Automated via cron/launchd
+*/30 * * * * cd /path/to/repo && bd backup sync
+```
+
+## JSONL Format
+
+Backup files use newline-delimited JSON (JSONL):
+
+```jsonl
+{"id":"bd-1","title":"First issue","status":"open",...}
+{"id":"bd-2","title":"Second issue","status":"closed",...}
+```
+
+Advantages:
+- Human-readable
+- Git-friendly (line-based diffs)
+- Portable across backends
+- Easy to inspect/edit
+
+## Incremental Backups
+
+Events are backed up incrementally:
+
+- First backup: Exports all events
+- Subsequent backups: Only new events since last backup
+- High-water mark tracked in `state.json`
+
+Other tables are fully exported each time (relatively small).
+
+## Troubleshooting
+
+### "No changes to export"
+
+**Cause**: Database unchanged since last backup
+
+**Solution**: Use `--force` flag to export anyway:
+```bash
+bd backup --force
+```
+
+### "Remote not configured"
+
+**Cause**: No backup remote set up
+
+**Solution**: Initialize backup destination:
+```bash
+bd backup init <url>
+```
+
+### "Authentication failed" (DoltHub)
+
+**Cause**: Missing or invalid credentials
+
+**Solution**: Set environment variables:
+```bash
+export DOLT_REMOTE_USER=myusername
+export DOLT_REMOTE_PASSWORD=my_token
+bd backup sync
+```
+
+### "Restore failed: corrupt JSONL"
+
+**Cause**: JSONL file contains invalid JSON
+
+**Solution**: 
+- Check file for syntax errors
+- Use last known good backup
+- Or restore from Dolt remote instead
+
+### "Backup directory not found"
+
+**Cause**: `.beads/backup/` doesn't exist
+
+**Solution**: Run first backup to create directory:
+```bash
+bd backup
+```
+
+## Related Commands
+
+- [`bd dolt`](/cli/dolt) - Direct Dolt operations (push, pull)
+- [`bd compact`](/cli/compact) - Reduce database size before backup
+- [`bd doctor`](/cli/doctor) - Verify backup integrity
+
+## See Also
+
+- [Backup and Recovery Guide](/guides/backup)
+- [Dolt Backend Setup](/setup/dolt)
+- [Federation Guide](/guides/federation)

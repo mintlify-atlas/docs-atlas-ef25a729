@@ -1,0 +1,358 @@
+---
+title: 'bd ready'
+description: 'Find unblocked work ready to be started'
+---
+
+## Usage
+
+```bash
+bd ready [flags]
+```
+
+## Description
+
+Show ready work: open issues with no active blocking dependencies. This is the primary command for finding work that can be started immediately.
+
+Excludes `in_progress`, `blocked`, `deferred`, and `hooked` issues. Uses blocker-aware semantics to find truly claimable work.
+
+<Info>
+  **Note**: `bd list --ready` is NOT equivalent - it only filters by status=open without checking blockers.
+</Info>
+
+## Parameters
+
+### Filtering
+
+<ParamField path="--limit" type="integer" default="10">
+  Maximum issues to show
+</ParamField>
+
+<ParamField path="--priority" type="integer">
+  Filter by priority (0-4)
+</ParamField>
+
+<ParamField path="--assignee" type="string">
+  Filter by assignee
+</ParamField>
+
+<ParamField path="--unassigned" type="boolean">
+  Show only unassigned issues
+</ParamField>
+
+<ParamField path="--type" type="string">
+  Filter by issue type: `task`, `bug`, `feature`, `epic`, `decision`, `merge-request`. Aliases: `mr`→`merge-request`, `feat`→`feature`, `mol`→`molecule`, `dec`/`adr`→`decision`
+</ParamField>
+
+<ParamField path="--label" type="string[]">
+  Filter by labels (AND: must have ALL). Can combine with `--label-any`.
+</ParamField>
+
+<ParamField path="--label-any" type="string[]">
+  Filter by labels (OR: must have AT LEAST ONE). Can combine with `--label`.
+</ParamField>
+
+<ParamField path="--parent" type="string">
+  Filter to descendants of this bead/epic
+</ParamField>
+
+<ParamField path="--mol-type" type="string">
+  Filter by molecule type: `swarm`, `patrol`, or `work`
+</ParamField>
+
+### Molecule Mode
+
+<ParamField path="--mol" type="string">
+  Filter to steps within a specific molecule
+</ParamField>
+
+<ParamField path="--gated" type="boolean">
+  Find molecules ready for gate-resume dispatch
+</ParamField>
+
+### Sorting
+
+<ParamField path="--sort" type="string" default="priority">
+  Sort policy: `priority` (default), `hybrid`, `oldest`
+</ParamField>
+
+### Display
+
+<ParamField path="--pretty" type="boolean" default="true">
+  Display issues in a tree format with status/priority symbols
+</ParamField>
+
+<ParamField path="--plain" type="boolean">
+  Display issues as a plain numbered list
+</ParamField>
+
+### Advanced
+
+<ParamField path="--include-deferred" type="boolean">
+  Include issues with future defer_until timestamps
+</ParamField>
+
+<ParamField path="--include-ephemeral" type="boolean">
+  Include ephemeral issues (wisps) in results
+</ParamField>
+
+<ParamField path="--rig" type="string">
+  Query a different rig's database (e.g., `--rig gastown`, `--rig gt-`, `--rig gt`)
+</ParamField>
+
+<ParamField path="--metadata-field" type="string[]">
+  Filter by metadata field (format: `key=value`, repeatable)
+</ParamField>
+
+<ParamField path="--has-metadata-key" type="string">
+  Filter issues that have this metadata key set
+</ParamField>
+
+### Output
+
+<ParamField path="--json" type="boolean">
+  Output JSON for agent use
+</ParamField>
+
+## Examples
+
+### Basic Usage
+
+<CodeGroup>
+```bash Default
+# Show top 10 ready issues by priority
+bd ready --json
+```
+
+```bash Unassigned Work
+bd ready --unassigned --json
+```
+
+```bash High Priority Only
+bd ready --priority 1 --json
+```
+</CodeGroup>
+
+### Filtering
+
+<CodeGroup>
+```bash By Type
+bd ready --type bug --json
+```
+
+```bash By Labels (AND)
+bd ready --label backend --label api --json
+```
+
+```bash By Labels (OR)
+bd ready --label-any frontend,mobile --json
+```
+
+```bash Epic Descendants
+bd ready --parent bd-epic-123 --json
+```
+</CodeGroup>
+
+### Molecule Mode
+
+<CodeGroup>
+```bash Ready Steps in Molecule
+bd ready --mol bd-mol-abc --json
+```
+
+```bash Gated Molecules
+bd ready --gated --json
+```
+</CodeGroup>
+
+### Sorting
+
+<CodeGroup>
+```bash By Priority
+bd ready --sort priority --json
+```
+
+```bash Oldest First
+bd ready --sort oldest --json
+```
+
+```bash Hybrid (Priority + Age)
+bd ready --sort hybrid --json
+```
+</CodeGroup>
+
+### Cross-Rig
+
+<CodeGroup>
+```bash Query Different Rig
+bd ready --rig gastown --json
+```
+
+```bash Multiple Rigs
+bd ready --rig beads --json
+bd ready --rig gastown --json
+```
+</CodeGroup>
+
+### Metadata Filtering
+
+<CodeGroup>
+```bash By Metadata Field
+bd ready --metadata-field team=platform --json
+```
+
+```bash Has Metadata Key
+bd ready --has-metadata-key sprint --json
+```
+</CodeGroup>
+
+## JSON Output
+
+With `--json` flag:
+
+```json
+[
+  {
+    "issue": {
+      "id": "bd-123",
+      "title": "Fix login bug",
+      "status": "open",
+      "priority": 1,
+      "issue_type": "bug",
+      "labels": ["backend", "security"],
+      "dependencies": []
+    },
+    "dependency_count": 0,
+    "dependent_count": 3,
+    "comment_count": 2,
+    "parent": null
+  }
+]
+```
+
+## Molecule Ready Output
+
+With `--mol` flag and `--json`:
+
+```json
+{
+  "molecule_id": "bd-mol-abc",
+  "molecule_title": "Deploy v2.0",
+  "total_steps": 5,
+  "ready_steps": 2,
+  "steps": [
+    {
+      "issue": {
+        "id": "bd-abc.1",
+        "title": "Run tests",
+        "status": "open",
+        "priority": 1
+      },
+      "parallel_info": {
+        "is_ready": true,
+        "can_parallel": ["bd-abc.2"]
+      },
+      "parallel_group": "test-suite"
+    }
+  ],
+  "parallel_groups": {
+    "test-suite": ["bd-abc.1", "bd-abc.2"]
+  }
+}
+```
+
+## Display Modes
+
+### Pretty Format (Default)
+
+Tree-style display with visual indicators:
+
+```
+📋 Ready work (3 issues with no active blockers):
+
+● P1 [bug] bd-123: Fix login bug
+  Epic: User authentication
+  
+○ P2 [task] bd-124: Add logging
+  
+● P1 [feature] bd-125: Dark mode
+  Estimate: 180 min
+```
+
+### Plain Format
+
+Numbered list for scripting:
+
+```
+1. [P1] [bug] bd-123: Fix login bug
+   Estimate: 60 min
+   Assignee: unassigned
+
+2. [P2] [task] bd-124: Add logging
+```
+
+## Blocker Semantics
+
+An issue is "ready" if:
+
+1. Status is `open` (not `in_progress`, `blocked`, `deferred`, `hooked`, `closed`)
+2. No open blocking dependencies (all `blocks` deps are closed)
+3. Parent is closed (for parent-child relationships)
+4. Not deferred (unless `--include-deferred`)
+5. Not ephemeral (unless `--include-ephemeral`)
+
+<Warning>
+  Issues with status=`blocked` are excluded even if blockers are closed. Use `bd update` to change status to `open`.
+</Warning>
+
+## Best Practices
+
+### For Agents
+
+1. **Start with `bd ready --json`** to find work
+2. **Use `--unassigned`** to avoid conflicts
+3. **Filter by `--label`** for area expertise
+4. **Claim immediately** with `bd update --claim`
+
+### For Humans
+
+1. **Use `--pretty`** for visual scanning
+2. **Filter by `--priority`** for urgent work
+3. **Check `--parent`** for epic-specific tasks
+4. **Review estimate** before claiming
+
+### Agent Workflow
+
+```bash
+# 1. Find ready work
+issue_id=$(bd ready --unassigned --json | jq -r '.[0].issue.id')
+
+# 2. Claim it atomically
+bd update $issue_id --claim --json
+
+# 3. Work on it
+# ...
+
+# 4. Close when done
+bd close $issue_id --reason "Completed" --json
+```
+
+## Comparison: ready vs list --ready
+
+| Feature | `bd ready` | `bd list --ready` |
+|---------|-----------|------------------|
+| Blocker check | ✅ Yes | ❌ No |
+| Parent check | ✅ Yes | ❌ No |
+| Deferred check | ✅ Yes | ❌ No |
+| Status filter | `open` only | `open` only |
+| Performance | Optimized | Slower |
+
+<Tip>
+  Always use `bd ready` for finding work, not `bd list --ready`.
+</Tip>
+
+## Related Commands
+
+- [`bd blocked`](/cli/ready#blocked) - Show blocked issues and blockers
+- [`bd update --claim`](/cli/update) - Claim ready work
+- [`bd list`](/cli/list) - General issue search
+- [`bd dep tree`](/cli/dep) - Visualize blocking relationships

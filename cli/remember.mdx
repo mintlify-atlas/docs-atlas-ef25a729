@@ -1,0 +1,235 @@
+---
+title: "bd remember"
+description: "Store persistent memories that survive sessions and account rotations"
+---
+
+## Overview
+
+The `bd remember` command stores knowledge permanently in a key-value store. Memories are automatically injected at `bd prime` time, making them available in every session without manual loading.
+
+**Added in:** v0.58.0
+
+## Syntax
+
+```bash
+bd remember "<insight>"
+bd remember "<insight>" --key <custom-key>
+```
+
+## Arguments
+
+<ParamField path="insight" type="string" required>
+  The knowledge or insight to store permanently. Must not be empty.
+</ParamField>
+
+## Options
+
+<ParamField path="--key" type="string">
+  Explicit key for the memory. If not provided, a key is auto-generated from the first ~8 words of the content using slugification (lowercase, hyphenated, max 60 chars).
+</ParamField>
+
+## How It Works
+
+### Storage
+
+Memories are stored in the Dolt-backed key-value configuration store with the prefix `kv.memory.`. This ensures they:
+
+- Persist across CLI sessions
+- Survive account rotations
+- Sync via Dolt push/pull
+- Are versioned with your project
+
+### Auto-Injection
+
+When you run `bd prime` (typically called automatically by AI tool hooks), all stored memories are injected into the context. This happens:
+
+- At session start (via SessionStart hooks)
+- After context compaction (via PreCompact hooks)
+- Whenever you manually run `bd prime`
+
+The memories appear in the output under a "Persistent Memories" section, making them available to AI agents automatically.
+
+### Key Generation
+
+If you don't specify `--key`, the system generates one by:
+
+1. Converting to lowercase
+2. Replacing non-alphanumeric characters with hyphens
+3. Taking the first ~8 words (hyphen-separated segments)
+4. Capping total length at 60 characters
+5. Trimming trailing hyphens
+
+## Examples
+
+### Basic Usage
+
+Store a simple insight:
+
+```bash
+bd remember "always run tests with -race flag"
+```
+
+Output:
+```
+Remembered [always-run-tests-with-race-flag]: always run tests with -race flag
+```
+
+### Custom Key
+
+Use a memorable key for easier retrieval:
+
+```bash
+bd remember "Dolt phantom DBs hide in three places: ~/.dolt, .dolt-data, and server catalog" --key dolt-phantoms
+```
+
+Output:
+```
+Remembered [dolt-phantoms]: Dolt phantom DBs hide in three places: ~/.dolt, .dolt-data, and...
+```
+
+### Multi-line Memories
+
+Store detailed information:
+
+```bash
+bd remember "Auth module uses JWT not sessions.
+Token expiry is 24h.
+Refresh tokens stored in Redis."
+```
+
+### Project-Specific Knowledge
+
+```bash
+bd remember "This repo's API tests require STAGING_API_KEY env var" --key api-test-setup
+bd remember "Deploy script needs Docker 24+ for BuildKit features" --key docker-version
+bd remember "Customer X prefers MySQL 8.0 compatibility mode" --key customer-x-db
+```
+
+### Updating Existing Memories
+
+If you store a memory with a key that already exists, it updates the existing value:
+
+```bash
+# First time
+bd remember "Run tests before deploy" --key deploy-checklist
+# Output: Remembered [deploy-checklist]: Run tests before deploy
+
+# Update it
+bd remember "Run tests and linter before deploy" --key deploy-checklist
+# Output: Updated [deploy-checklist]: Run tests and linter before deploy
+```
+
+## Use Cases for Agents
+
+### Configuration Details
+
+```bash
+bd remember "S3 bucket for staging: beads-staging-us-west-2" --key s3-staging
+bd remember "Production DB requires VPN connection" --key prod-db-access
+```
+
+### Gotchas and Edge Cases
+
+```bash
+bd remember "Zero-value timestamps mean 'never set' not 'epoch time'" --key timestamp-gotcha
+bd remember "Race detector catches the flaky TestParallel issue" --key test-race
+```
+
+### Team Conventions
+
+```bash
+bd remember "PRs need 2 approvals for main branch" --key pr-policy
+bd remember "Use bd create before coding, not after" --key workflow-rule
+```
+
+### Tool Quirks
+
+```bash
+bd remember "Dolt embedded mode deadlocks in git hooks - use server mode" --key dolt-hook-deadlock
+bd remember "ICU flags required for CGO tests on macOS" --key macos-test-cgo
+```
+
+## Agent Workflow
+
+AI agents should use `bd remember` to store knowledge that:
+
+1. **Persists across sessions** - Don't lose hard-won insights
+2. **Applies project-wide** - Not specific to one file or task
+3. **Prevents repeated mistakes** - Learn from bugs and gotchas
+4. **Documents decisions** - Why certain patterns exist
+
+**Anti-pattern:** Creating `MEMORY.md` files that fragment across accounts and get lost.
+
+**Best practice:** Use `bd remember` so memories sync with your Dolt database and inject automatically.
+
+## JSON Output
+
+Add `--json` flag for programmatic use:
+
+```bash
+bd remember "insight" --key test --json
+```
+
+Output:
+```json
+{
+  "key": "test",
+  "value": "insight",
+  "action": "remembered"
+}
+```
+
+For updates:
+```json
+{
+  "key": "test",
+  "value": "new insight",
+  "action": "updated"
+}
+```
+
+## Related Commands
+
+- [`bd memories`](/cli/memories) - List or search all stored memories
+- [`bd recall`](/cli/recall) - Retrieve a specific memory by key
+- [`bd forget`](/cli/forget) - Delete a memory
+- `bd prime` - Output context including all memories (auto-called by hooks)
+
+## Error Handling
+
+### Empty Content
+
+```bash
+bd remember ""
+# Error: memory content cannot be empty
+```
+
+### Key Generation Failure
+
+```bash
+bd remember "!!!" 
+# Error: could not generate key from content; use --key to specify one
+```
+
+In this case, provide an explicit key:
+```bash
+bd remember "!!!" --key special-marker
+```
+
+## Tips
+
+<Tip>
+  Use descriptive keys that you'll remember. Keys like `auth-jwt`, `dolt-phantoms`, and `api-staging` are better than auto-generated `dolt-phantom-dbs-hide-in`.
+</Tip>
+
+<Tip>
+  Search your memories before creating new ones: `bd memories <keyword>` to avoid duplicates.
+</Tip>
+
+<Warning>
+  Memories are stored in the database. Don't store secrets or credentials. Use environment variables or secret managers for sensitive data.
+</Warning>
+
+<Note>
+  Memories automatically sync when you push to your Dolt remote, making them available to team members and other machines.
+</Note>

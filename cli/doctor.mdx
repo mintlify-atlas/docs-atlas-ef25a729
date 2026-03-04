@@ -1,0 +1,443 @@
+---
+title: bd doctor
+description: Check and fix beads installation health
+---
+
+## Overview
+
+Sanity check the beads installation for the current directory or specified path. Detects configuration issues, missing dependencies, database problems, and more. Can automatically fix many issues.
+
+## Syntax
+
+```bash
+bd doctor [path] [flags]
+```
+
+## What It Checks
+
+### Core
+
+- ✓ .beads/ directory exists
+- ✓ Database version and migration status
+- ✓ Schema compatibility (all required tables and columns)
+- ✓ ID format (hash-based vs sequential)
+- ✓ CLI version is current (checks GitHub releases)
+- ✓ File permissions
+- ✓ Dolt format compatibility
+- ✓ Database integrity
+
+### Data
+
+- ✓ Configuration consistency
+- ✓ Configuration value validation
+- ✓ Remote consistency (SQL vs CLI)
+- ✓ Circular dependencies
+- ✓ Orphaned dependencies
+- ✓ Duplicate issues
+- ✓ Test pollution
+- ✓ Database size and pruning recommendations
+
+### Git Integration
+
+- ✓ Git hooks installed (pre-commit, post-merge, pre-push)
+- ✓ .beads/.gitignore up to date
+- ✓ Project-root .gitignore has Dolt exclusions
+- ✓ Redirect files not tracked
+- ✓ Redirect targets valid
+- ✓ No vestigial sync worktrees
+- ✓ Working tree cleanliness
+- ✓ Upstream sync status
+- ✓ Orphaned issues (referenced in commits but still open)
+
+### Claude Integration
+
+- ✓ Claude integration configured
+- ✓ Claude settings file health
+- ✓ Claude hook completeness
+- ✓ bd prime output verification
+- ✓ bd in PATH
+- ✓ Documentation bd prime references
+- ✓ Agent documentation presence
+- ✓ Claude plugin version (in Claude Code)
+
+### Dolt Backend
+
+- ✓ Dolt connection health
+- ✓ Dolt schema valid
+- ✓ Dolt issue count matches
+- ✓ Dolt server status
+- ✓ Lock health
+- ✓ Pending migrations
+- ✓ Classic artifacts (post-migration cleanup)
+
+### Federation
+
+- ✓ RemotesAPI port accessibility
+- ✓ Peer connectivity
+- ✓ Sync staleness
+- ✓ Conflict detection
+- ✓ Server mode mismatch
+
+### Maintenance
+
+- ✓ Stale closed issues
+- ✓ Stale molecules
+- ✓ Persistent mol- issues
+- ✓ Legacy merge queue files
+- ✓ Patrol pollution
+- ✓ Merge artifacts
+- ✓ KV store sync status
+
+## Modes
+
+### Standard Mode
+
+Run all checks and report issues:
+
+```bash
+bd doctor
+bd doctor /path/to/repo
+```
+
+### Fix Mode
+
+Automatically fix issues where possible:
+
+```bash
+bd doctor --fix              # With confirmation
+bd doctor --fix --yes        # No confirmation
+bd doctor --fix -i           # Confirm each fix individually
+bd doctor --fix --dry-run    # Preview without making changes
+```
+
+### Performance Mode
+
+Run performance diagnostics:
+
+```bash
+bd doctor --perf
+```
+
+Times key operations (bd ready, bd list, bd show), collects system info, and generates CPU profile.
+
+### Specific Check Mode
+
+Run a specific check in detail:
+
+```bash
+bd doctor --check=artifacts            # Show classic artifacts
+bd doctor --check=artifacts --clean    # Delete artifacts
+bd doctor --check=pollution            # Show test pollution
+bd doctor --check=pollution --clean    # Delete test issues
+bd doctor --check=validate             # Data integrity checks
+bd doctor --check=validate --fix       # Auto-fix integrity issues
+```
+
+### Deep Validation Mode
+
+Validate full graph integrity (may be slow):
+
+```bash
+bd doctor --deep
+```
+
+Additional checks:
+- Parent consistency
+- Dependency integrity
+- Epic completeness
+- Agent bead integrity
+- Mail thread integrity
+- Molecule integrity
+
+### Server Mode
+
+Health checks for Dolt server connections:
+
+```bash
+bd doctor --server
+```
+
+Checks:
+- Server reachable
+- Dolt version (not vanilla MySQL)
+- Database exists
+- Schema compatible
+- Connection pool health
+
+### Migration Validation Mode
+
+Validate Dolt migrations:
+
+```bash
+bd doctor --migration=pre     # Before migration
+bd doctor --migration=post    # After migration
+bd doctor --migration=pre --json  # Machine-parseable
+```
+
+### Agent Mode
+
+Output diagnostics for AI agent consumption (ZFC-compliant):
+
+```bash
+bd doctor --agent
+bd doctor --agent --json
+```
+
+Includes:
+- Observed vs expected state
+- Full prose explanations
+- Exact remediation commands
+- Source file references
+- Severity levels
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--fix` | Automatically fix issues |
+| `--yes`, `-y` | Skip confirmation prompts |
+| `--interactive`, `-i` | Confirm each fix individually |
+| `--dry-run` | Preview fixes without making changes |
+| `--fix-child-parent` | Remove child→parent dependencies (opt-in) |
+| `--verbose`, `-v` | Show all checks (default: only warnings/errors) |
+| `--perf` | Run performance diagnostics |
+| `--output <file>` | Export diagnostics to JSON file |
+| `--check <name>` | Run specific check (artifacts, pollution, validate) |
+| `--clean` | Delete detected items (with --check) |
+| `--deep` | Full graph integrity validation |
+| `--server` | Dolt server health checks |
+| `--migration <phase>` | Migration validation (pre or post) |
+| `--agent` | Agent-facing diagnostic mode |
+| `--json` | Machine-readable output |
+
+## Examples
+
+### Basic Health Check
+
+```bash
+bd doctor
+```
+
+Output:
+```
+bd doctor v1.0.0  ─  ✓ 45 passed  ⚠ 2 warnings  ✗ 0 errors
+
+Git Integration (3/4 passed)
+  ⚠  Git Hooks: pre-commit hook missing
+      └─ Run: bd hooks install
+
+Data (12/13 passed)
+  ⚠  Test Pollution: 3 test issues found in database
+      Run bd doctor --check=pollution --clean to remove
+
+Run with --verbose to see all checks
+```
+
+### Fix All Issues
+
+```bash
+bd doctor --fix
+```
+
+Prompts for confirmation before making changes:
+
+```
+Found 2 issues to fix:
+  1. Install missing git hooks
+  2. Remove test pollution (3 issues)
+
+Apply fixes? (y/N): y
+
+✓ Installed git hooks
+✓ Removed 3 test issues
+
+Verifying fixes...
+
+✓ All checks passed
+```
+
+### Preview Fixes
+
+```bash
+bd doctor --dry-run
+```
+
+Shows what would be fixed without making changes.
+
+### Fix Without Confirmation
+
+For automation/CI:
+
+```bash
+bd doctor --fix --yes
+```
+
+### Clean Up Classic Artifacts
+
+After migrating to Dolt:
+
+```bash
+bd doctor --check=artifacts            # Show what would be cleaned
+bd doctor --check=artifacts --clean    # Delete JSONL/SQLite files
+```
+
+### Remove Test Pollution
+
+```bash
+bd doctor --check=pollution            # Show test issues
+bd doctor --check=pollution --clean    # Delete them
+```
+
+### Performance Diagnostics
+
+```bash
+bd doctor --perf
+```
+
+Generates report with:
+- Operation timings
+- System info
+- CPU profile
+- Database stats
+
+### Export for Bug Reports
+
+```bash
+bd doctor --output diagnostics.json
+```
+
+Saves full diagnostic report with timestamp and platform info.
+
+### Validate Dolt Migration
+
+**Before migration:**
+
+```bash
+bd doctor --migration=pre
+```
+
+Verifies:
+- JSONL file valid
+- All issues present
+- No blocking issues
+
+**After migration:**
+
+```bash
+bd doctor --migration=post
+```
+
+Verifies:
+- Dolt database healthy
+- All issues migrated
+- No data loss
+- No uncommitted changes
+
+## Fixing Issues
+
+### Automatic Fixes
+
+`bd doctor --fix` can automatically repair:
+
+- Missing git hooks
+- Outdated .gitignore files
+- Orphaned dependencies
+- Test pollution
+- Duplicate issues (merges them)
+- Stale lock files
+- Remote inconsistencies
+- Classic artifacts
+
+### Manual Fixes Required
+
+Some issues require manual intervention:
+
+- Circular dependencies (break the cycle)
+- Database version mismatches (run migrations)
+- Permission errors (fix file permissions)
+- Dolt connection failures (start server)
+- Configuration conflicts (resolve manually)
+
+## Suppressing Warnings
+
+Suppress specific warnings via config:
+
+```bash
+bd config set doctor.suppress.pending-migrations true
+bd config set doctor.suppress.git-hooks true
+```
+
+Check names are converted to slugs: "Git Hooks" → "git-hooks".
+
+To unsuppress:
+
+```bash
+bd config unset doctor.suppress.git-hooks
+```
+
+## Troubleshooting
+
+### "Not in a beads repository"
+
+**Cause**: No .beads/ directory found
+
+**Solution**: Run `bd init` or specify path: `bd doctor /path/to/repo`
+
+### "Database version mismatch"
+
+**Cause**: CLI version doesn't match database version
+
+**Solution**:
+```bash
+bd migrate    # Run pending migrations
+bd doctor     # Verify
+```
+
+### "Cannot open database"
+
+**Cause**: Database file locked or corrupted
+
+**Solution**:
+```bash
+bd doctor --fix --force              # Force repair
+bd doctor --fix --source=jsonl       # Rebuild from JSONL
+```
+
+### "Git hooks not working"
+
+**Cause**: Hooks not installed or incorrect
+
+**Solution**:
+```bash
+bd hooks install --force    # Reinstall hooks
+bd doctor                   # Verify
+```
+
+### "Dolt server not reachable"
+
+**Cause**: Server not running
+
+**Solution**:
+```bash
+bd dolt status    # Check status
+bd dolt start     # Start server
+bd dolt test      # Test connection
+```
+
+## Exit Codes
+
+- `0`: All checks passed
+- `1`: One or more checks failed
+
+## Related Commands
+
+- [`bd hooks`](/cli/hooks) - Manage git hooks directly
+- [`bd migrate`](/cli/migrate) - Run database migrations
+- [`bd dolt`](/cli/dolt) - Dolt server management
+- [`bd backup`](/cli/backup) - Create backups before repairs
+
+## See Also
+
+- [Installation Guide](/setup/installation)
+- [Troubleshooting Guide](/guides/troubleshooting)
+- [Migration Guide](/guides/migration)

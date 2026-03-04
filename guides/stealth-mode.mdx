@@ -1,0 +1,405 @@
+---
+title: Stealth mode
+description: Use Beads locally without committing files to the main repository
+---
+
+Stealth mode lets you use Beads for personal task tracking without adding `.beads/` files to the repository. Perfect for personal use on shared projects or when you don't want Beads artifacts in version control.
+
+## When to use stealth mode
+
+Use stealth mode when:
+
+- **Personal tracking**: Using Beads for your own planning on a project that doesn't use Beads
+- **Experimentation**: Testing Beads before committing to it for the team
+- **Shared projects**: Working on projects where adding `.beads/` would be controversial
+- **Privacy**: Keeping your task management private
+
+<Warning>Stealth mode is for local-only use. Issues in stealth mode are NOT synced to remotes.</Warning>
+
+## Setting up stealth mode
+
+<Steps>
+  <Step title="Initialize with --stealth flag">
+    Navigate to your project and initialize Beads in stealth mode:
+    
+    ```bash
+    cd your-project
+    bd init --stealth
+    ```
+    
+    This:
+    - Creates `.beads/` directory
+    - Adds `.beads/` to `.git/info/exclude` (local gitignore)
+    - Sets `no-git-ops=true` in config
+    - Disables automatic git hooks
+  </Step>
+
+  <Step title="Verify stealth configuration">
+    Check that stealth mode is active:
+    
+    ```bash
+    bd config get no-git-ops  # → true
+    
+    # Verify .beads/ is ignored locally
+    git status  # Should NOT show .beads/
+    
+    # Check .git/info/exclude
+    cat .git/info/exclude  # Should contain .beads/
+    ```
+  </Step>
+
+  <Step title="Create issues normally">
+    Use Beads normally - issues won't appear in git:
+    
+    ```bash
+    bd create "Add tests" -t task -p 1
+    bd create "Fix validation bug" -t bug -p 0
+    bd ready
+    ```
+  </Step>
+</Steps>
+
+## How stealth mode works
+
+Stealth mode uses `.git/info/exclude` instead of `.gitignore`:
+
+```bash
+# .gitignore (committed, affects everyone)
+.beads/  # ← Normal mode adds this
+
+# .git/info/exclude (local, affects only you)
+.beads/  # ← Stealth mode adds this
+```
+
+This means:
+- ✅ `.beads/` is ignored by git
+- ✅ No `.gitignore` changes in your commits
+- ✅ Other contributors don't see `.beads/` in their status
+- ❌ Stealth mode doesn't sync to other machines
+
+## Configuration
+
+### No-git-ops flag
+
+The `no-git-ops` config prevents git operations:
+
+```bash
+# Enable stealth mode
+bd config set no-git-ops true
+
+# Disable stealth mode
+bd config set no-git-ops false
+
+# Check current state
+bd config get no-git-ops
+```
+
+When `no-git-ops=true`:
+- No automatic git commits
+- No git hooks installed
+- No backup git push operations
+- Database operations are local-only
+
+### Protected branches
+
+Stealth mode disables protected branch features:
+
+```bash
+# This has no effect in stealth mode
+bd init --branch beads-metadata
+
+# Stealth mode always uses direct storage
+bd config get no-git-ops  # → true (overrides branch config)
+```
+
+## Using stealth mode
+
+### Creating and managing issues
+
+Use Beads normally:
+
+```bash
+# Create issues
+bd create "Add authentication" -p 0
+bd create "Write documentation" -t task -p 2
+
+# Manage dependencies
+bd dep add bd-a3f8 bd-b7c2
+
+# Find ready work
+bd ready
+
+# Close issues
+bd close bd-a3f8 --reason "Done"
+
+# All operations are local-only
+git status  # .beads/ won't appear
+```
+
+### Viewing issues
+
+All query commands work normally:
+
+```bash
+bd list --status open
+bd show bd-a3f8
+bd graph bd-a3f8
+bd list --label bug
+```
+
+### Syncing across machines
+
+<Warning>Stealth mode issues do NOT sync automatically. You must export/import manually.</Warning>
+
+To sync between machines:
+
+```bash
+# Machine 1: Export issues
+bd export --output ~/beads-backup.jsonl
+
+# Transfer file to Machine 2 (scp, Dropbox, etc.)
+
+# Machine 2: Import issues
+bd import ~/beads-backup.jsonl
+```
+
+## Converting to/from stealth mode
+
+### Enabling stealth mode on existing repo
+
+```bash
+# Add .beads/ to local exclude
+echo ".beads/" >> .git/info/exclude
+
+# Enable no-git-ops
+bd config set no-git-ops true
+
+# Uninstall git hooks (optional)
+bd hooks uninstall
+
+# Remove .beads/ from tracking (if previously committed)
+git rm -r --cached .beads/
+git commit -m "Remove .beads/ from tracking"
+```
+
+### Disabling stealth mode
+
+```bash
+# Remove from local exclude
+# (edit .git/info/exclude and remove .beads/ line)
+
+# Disable no-git-ops
+bd config set no-git-ops false
+
+# Install git hooks
+bd hooks install
+
+# Add .beads/ to git
+git add .beads/
+git commit -m "Add Beads tracking"
+```
+
+## Backup and recovery
+
+Since stealth mode is local-only, backup is critical:
+
+### Manual backup
+
+```bash
+# Export to JSONL
+bd export --output ~/backups/beads-$(date +%Y%m%d).jsonl
+
+# Export to Dolt bundle (preserves history)
+bd backup init ~/backups/beads-bundle
+bd backup sync
+```
+
+### Automated backup
+
+Set up cron job for regular backups:
+
+```bash
+# Add to crontab
+crontab -e
+
+# Backup daily at 2am
+0 2 * * * cd ~/your-project && bd export --output ~/backups/beads-$(date +\%Y\%m\%d).jsonl
+```
+
+### Recovery
+
+```bash
+# Restore from backup
+bd import ~/backups/beads-20260304.jsonl
+
+# Or restore from Dolt bundle
+bd backup restore ~/backups/beads-bundle
+```
+
+## Stealth mode with teams
+
+### Personal stealth, team uses Beads
+
+**Scenario**: Team uses Beads, you want personal issues in stealth mode.
+
+**Solution**: Use [contributor mode](/guides/contributor-mode) instead:
+
+```bash
+# Better than stealth for this use case
+bd init --contributor
+
+# Personal issues → ~/.beads-planning/
+# Team issues → ./.beads/
+```
+
+### Everyone uses stealth
+
+**Scenario**: Team wants to use Beads without committing `.beads/`.
+
+**Problem**: No sync, everyone's issues are isolated.
+
+**Solution**: Use protected branches instead:
+
+```bash
+# Each team member does this
+bd init --branch beads-metadata
+
+# Issues commit to separate branch
+# Can be pushed/pulled independently
+```
+
+See [Sync and backup](/guides/sync-and-backup) for team workflows.
+
+## Limitations
+
+### No automatic sync
+
+Stealth mode has no sync:
+- ❌ No Dolt push/pull
+- ❌ No git integration
+- ❌ No automatic backups
+- ✅ Manual export/import works
+
+### No cross-machine consistency
+
+Issue IDs may collide:
+
+```bash
+# Machine 1
+bd create "Task A" -p 1
+# → bd-a3f8
+
+# Machine 2 (independent)
+bd create "Task B" -p 1  
+# → bd-a3f8 (same ID!)
+
+# Import causes collision
+```
+
+Use `--prefix` to avoid collisions:
+
+```bash
+# Machine 1
+bd config set db.prefix laptop
+bd create "Task A" -p 1  # → laptop-a3f8
+
+# Machine 2
+bd config set db.prefix desktop
+bd create "Task B" -p 1  # → desktop-a3f8
+```
+
+### No multi-writer support
+
+Stealth mode is single-writer:
+- ❌ No concurrent access
+- ❌ No server mode
+- ✅ Single agent/user only
+
+## Comparison with other modes
+
+| Feature | Stealth Mode | Contributor Mode | Normal Mode |
+|---------|--------------|------------------|-------------|
+| **Git tracking** | No | Separate repo | Yes |
+| **Sync** | Manual only | Independent | Automatic |
+| **Team use** | No | Yes | Yes |
+| **Privacy** | Complete | Personal issues only | None |
+| **Setup** | Simple | Moderate | Simple |
+| **Backup** | Manual | Git-backed | Git-backed |
+
+## Best practices
+
+### For stealth mode users
+
+- ✅ Set up automated backups (cron or similar)
+- ✅ Export before major changes or experiments
+- ✅ Use unique prefixes if syncing between machines
+- ✅ Document that you're using stealth mode (for future you)
+- ❌ Don't rely on stealth mode for critical data without backups
+- ❌ Don't use stealth mode for team collaboration
+
+### When to switch modes
+
+**Switch from stealth to contributor** when:
+- You want sync across machines
+- You're working on a fork and want to avoid PR pollution
+- You want git-backed persistence
+
+**Switch from stealth to normal** when:
+- Team adopts Beads
+- Project is personal/you control it
+- You want full git integration
+
+## Troubleshooting
+
+### .beads/ appearing in git status
+
+**Diagnosis**:
+
+```bash
+# Check if .beads/ is in exclude
+grep .beads .git/info/exclude
+
+# Check no-git-ops config
+bd config get no-git-ops
+```
+
+**Solution**:
+
+```bash
+# Add to exclude if missing
+echo ".beads/" >> .git/info/exclude
+
+# Verify
+git status  # .beads/ should not appear
+```
+
+### Lost issues after machine crash
+
+**Problem**: Stealth mode is local-only, no backup.
+
+**Solution**: Restore from backup:
+
+```bash
+# If you have a backup
+bd import ~/backups/beads-latest.jsonl
+
+# If no backup, issues are lost
+# This is why automated backups are critical
+```
+
+### ID collisions after import
+
+**Problem**: Two machines generated same ID.
+
+**Solution**: Use doctor to detect and fix:
+
+```bash
+bd doctor --fix
+# Detects collisions and suggests resolution
+```
+
+## See also
+
+- [Contributor mode](/guides/contributor-mode) - Better for team projects
+- [Sync and backup](/guides/sync-and-backup) - Dolt push/pull workflows
+- [Installation](/installation) - Setup and configuration

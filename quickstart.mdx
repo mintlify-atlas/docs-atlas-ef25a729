@@ -1,80 +1,488 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get up and running with Beads in 2 minutes - create your first issues, add dependencies, and find ready work
 ---
 
-## Get started in three steps
+# Quickstart Guide
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+Get up and running with Beads in 2 minutes.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  This guide assumes you've already [installed Beads](/installation). If not, install it first:
+  
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
+  ```
 </Note>
+
+## Initialize Beads
+
+<Steps>
+  <Step title="Navigate to your project">
+    ```bash
+    cd your-project
+    ```
+  </Step>
+  
+  <Step title="Initialize Beads">
+    ```bash
+    bd init
+    ```
+    
+    The wizard will:
+    - Create `.beads/` directory and Dolt database
+    - Prompt for your role (maintainer or contributor)
+    - Import existing issues from git (if any)
+    - Offer to install git hooks (recommended)
+    - Auto-start Dolt server for database operations
+  </Step>
+  
+  <Step title="Choose your role">
+    When prompted: "Contributing to someone else's repo? [y/N]"
+    
+    - Answer **N** if you're the maintainer or have push access
+    - Answer **Y** if you're contributing to a fork
+    
+    | Role | Use Case | Issue Storage |
+    |------|----------|---------------|
+    | `maintainer` | Repo owner, team with push access | In-repo `.beads/` |
+    | `contributor` | Fork contributor, OSS contributor | Separate planning repo |
+  </Step>
+</Steps>
+
+<Tip>
+  For team workflows with protected main branches, use:
+  ```bash
+  bd init --branch beads-sync
+  ```
+  This commits Beads data to a separate branch instead of main.
+</Tip>
+
+## Create Your First Issues
+
+Let's create a few issues to get started:
+
+```bash
+# Create a P1 task
+bd create "Set up database" -p 1 -t task
+
+# Create P2 features
+bd create "Create API endpoints" -p 2 -t feature
+bd create "Add authentication" -p 2 -t feature
+```
+
+<Note>
+  Issue IDs are hash-based (e.g., `bd-a1b2`, `bd-f14c`) to prevent collisions when multiple agents/branches work concurrently.
+</Note>
+
+### With Descriptions
+
+Add context with the `--description` flag:
+
+```bash
+bd create "Set up database" -p 1 -t task \
+  --description="Initialize PostgreSQL schema with users, posts, and comments tables"
+```
+
+For descriptions with special characters (backticks, quotes), use stdin:
+
+```bash
+echo 'Description with `code blocks` and "quotes"' | bd create "Title" --description=-
+```
+
+## View Your Issues
+
+List all issues:
+
+```bash
+bd list
+```
+
+Output:
+```
+○ bd-a1b2 [P1] [task] - Set up database
+○ bd-f14c [P2] [feature] - Create API endpoints
+○ bd-g25d [P2] [feature] - Add authentication
+```
+
+Symbol meanings:
+- `○` - Open
+- `◐` - In progress
+- `●` - Closed
+- `✓` - Done
+- `❄` - Deferred
+
+## Add Dependencies
+
+Create a dependency chain - API needs database, auth needs API:
+
+```bash
+# API depends on database
+bd dep add bd-f14c bd-a1b2
+
+# Auth depends on API
+bd dep add bd-g25d bd-f14c
+```
+
+<Tip>
+  Dependency syntax: `bd dep add <child> <parent>`
+  
+  The first ID (child) is blocked by the second ID (parent).
+</Tip>
+
+## Visualize Dependencies
+
+View the dependency tree:
+
+```bash
+bd dep tree bd-g25d
+```
+
+Output:
+```
+🌲 Dependency tree for bd-g25d:
+
+→ bd-g25d: Add authentication [P2] (open)
+  → bd-f14c: Create API endpoints [P2] (open)
+    → bd-a1b2: Set up database [P1] (open)
+```
+
+You can see that `bd-g25d` is blocked by the entire chain!
+
+## Find Ready Work
+
+Beads automatically identifies unblocked tasks:
+
+```bash
+bd ready
+```
+
+Output:
+```
+📋 Ready work (1 issues with no blockers):
+
+1. [P1] bd-a1b2: Set up database
+```
+
+Only `bd-a1b2` shows up because `bd-f14c` and `bd-g25d` are blocked!
+
+<Note>
+  `bd ready` uses blocker-aware semantics. It excludes:
+  - Issues with open blocking dependencies
+  - In-progress issues (already claimed)
+  - Deferred issues
+  - Blocked or hooked statuses
+</Note>
+
+## Work on a Task
+
+<Steps>
+  <Step title="Claim the task atomically">
+    ```bash
+    bd update bd-a1b2 --claim
+    ```
+    
+    This sets:
+    - `assignee` to your git user
+    - `status` to `in_progress`
+    
+    The operation is atomic (compare-and-swap) to prevent race conditions.
+  </Step>
+  
+  <Step title="Do the work">
+    Implement the feature, fix the bug, write the code!
+  </Step>
+  
+  <Step title="Complete the task">
+    ```bash
+    bd close bd-a1b2 --reason "Database schema initialized with migrations"
+    ```
+    
+    The task is now marked as closed.
+  </Step>
+</Steps>
+
+## Check Ready Work Again
+
+Now that `bd-a1b2` is closed:
+
+```bash
+bd ready
+```
+
+Output:
+```
+📋 Ready work (1 issues with no blockers):
+
+1. [P2] bd-f14c: Create API endpoints
+```
+
+`bd-f14c` is now unblocked! 🎉
+
+<Tip>
+  This is the core workflow: find ready work → claim → complete → next task becomes ready.
+</Tip>
+
+## Working with Hierarchical Issues
+
+For large features, organize work as epics:
+
+```bash
+# Create an epic
+bd create "Auth System" -t epic -p 1
+# Returns: bd-a3f8
+
+# Create child tasks (automatically get .1, .2, .3 suffixes)
+bd create "Design login UI" -p 1 --parent bd-a3f8       # → bd-a3f8.1
+bd create "Backend validation" -p 1 --parent bd-a3f8    # → bd-a3f8.2
+bd create "Integration tests" -p 1 --parent bd-a3f8     # → bd-a3f8.3
+```
+
+View the hierarchy:
+
+```bash
+bd dep tree bd-a3f8
+```
+
+Output:
+```
+🌲 Dependency tree for bd-a3f8:
+
+→ bd-a3f8: Auth System [epic] [P1] (open)
+  → bd-a3f8.1: Design login UI [P1] (open)
+  → bd-a3f8.2: Backend validation [P1] (open)
+  → bd-a3f8.3: Integration tests [P1] (open)
+```
+
+## Filter and Search
+
+### By Priority
+
+```bash
+# Show only P0 (critical) work
+bd ready --priority 0
+
+# Show P1 and higher
+bd list --priority 1
+```
+
+### By Type
+
+```bash
+# Show only bugs
+bd ready --type bug
+
+# Show features
+bd list --type feature
+```
+
+### By Label
+
+```bash
+# Create issue with labels
+bd create "Fix login bug" -l "backend,urgent" -p 0
+
+# Filter by label
+bd ready --label backend
+bd ready --label-any backend,frontend  # Match any label
+```
+
+### By Assignee
+
+```bash
+# Show only your work
+bd list --assignee @me
+
+# Show unassigned work
+bd ready --unassigned
+```
+
+## Track Progress
+
+### View Blocked Issues
+
+```bash
+bd blocked
+```
+
+Shows all blocked issues and what's blocking them.
+
+### View Statistics
+
+```bash
+bd stats
+```
+
+Output:
+```
+📊 Issue Statistics:
+
+Total issues: 15
+  Open: 8
+  In Progress: 3
+  Closed: 4
+
+By Priority:
+  P0: 1
+  P1: 5
+  P2: 9
+
+By Type:
+  feature: 8
+  bug: 4
+  task: 3
+```
+
+## Sync with Team
+
+If you installed git hooks during `bd init`, Beads auto-syncs on:
+- `git pull`
+- `git push`
+- `git checkout`
+- `git merge`
+
+### Manual Sync
+
+Push changes to Dolt remote:
+
+```bash
+bd dolt push
+```
+
+Pull changes from team:
+
+```bash
+bd dolt pull
+```
+
+<Note>
+  Dolt handles version control natively - no JSONL export/import needed!
+</Note>
+
+## AI Agent Workflow
+
+For AI agents, use `--json` flag for programmatic access:
+
+<CodeGroup>
+```bash Check for work
+bd ready --json
+```
+
+```bash Claim task
+bd update bd-a1b2 --claim --json
+```
+
+```bash Discover work
+echo 'Found edge case in auth flow' | \
+  bd create "Handle expired tokens" \
+  --deps discovered-from:bd-a1b2 \
+  --description=- \
+  --json
+```
+
+```bash Complete work
+bd close bd-a1b2 --reason "Implemented with tests" --json
+```
+</CodeGroup>
+
+JSON output example:
+
+```json
+{
+  "id": "bd-a1b2",
+  "title": "Set up database",
+  "status": "closed",
+  "priority": 1,
+  "type": "task",
+  "assignee": "agent-1",
+  "created": "2026-03-04T10:30:00Z",
+  "updated": "2026-03-04T11:45:00Z"
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation Guide" icon="download" href="/installation">
+    Detailed installation for all platforms and package managers
+  </Card>
+  <Card title="Essential Commands" icon="terminal" href="/commands">
+    Complete CLI reference with examples
+  </Card>
+  <Card title="Agent Instructions" icon="robot" href="/agent-workflow">
+    Detailed guide for integrating Beads with AI agents
+  </Card>
+  <Card title="Advanced Features" icon="wand-magic-sparkles" href="/advanced">
+    Compaction, hierarchy, gates, and more
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+### Discovered Work Pattern
+
+When implementing a feature, you often discover new work:
+
+```bash
+# You're working on bd-a1b2
+bd update bd-a1b2 --claim
+
+# You discover a bug while implementing
+bd create "Fix null pointer in auth" \
+  -t bug -p 0 \
+  --deps discovered-from:bd-a1b2 \
+  --description="Found while implementing database setup"
+
+# Close original work
+bd close bd-a1b2 --reason "Complete, filed bd-x9y8 for bug found"
+```
+
+### Planning Pattern
+
+Break down a large feature:
+
+```bash
+# 1. Create epic
+bd create "User Dashboard" -t epic -p 1
+# Returns: bd-d4sh
+
+# 2. Create child tasks
+bd create "Dashboard UI" --parent bd-d4sh -p 1
+bd create "API endpoints" --parent bd-d4sh -p 1
+bd create "Database queries" --parent bd-d4sh -p 1
+bd create "Tests" --parent bd-d4sh -p 2
+
+# 3. Add dependencies between children
+bd dep add bd-d4sh.1 bd-d4sh.3  # UI depends on database
+bd dep add bd-d4sh.2 bd-d4sh.3  # API depends on database
+bd dep add bd-d4sh.4 bd-d4sh.1  # Tests depend on UI
+bd dep add bd-d4sh.4 bd-d4sh.2  # Tests depend on API
+
+# 4. View the plan
+bd dep tree bd-d4sh
+```
+
+### Bug Triage Pattern
+
+```bash
+# Critical bugs get P0
+bd create "Auth bypass vulnerability" -t bug -p 0 -l security
+
+# Important bugs get P1
+bd create "Login fails on Safari" -t bug -p 1 -l browser,auth
+
+# Find all P0 bugs
+bd ready --priority 0 --type bug
+```
+
+<Warning>
+  Don't use `bd edit` in automated scripts - it opens an interactive editor. Use `bd update` with flags instead.
+</Warning>
+
+## Tips
+
+1. **Always add descriptions** - Future you (or your agent) will thank you
+2. **Use labels liberally** - They make filtering much easier
+3. **Set up git hooks** - Auto-sync saves manual work
+4. **Use `bd ready` not `bd list --ready`** - `bd ready` is blocker-aware
+5. **Link discovered work** - Use `--deps discovered-from:` to track context

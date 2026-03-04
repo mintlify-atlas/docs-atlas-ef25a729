@@ -1,0 +1,190 @@
+---
+title: Introduction
+description: Distributed, git-backed issue tracking for AI agents - giving coding agents persistent memory and dependency-aware task management
+---
+
+# What is Beads?
+
+Beads (`bd`) is a **distributed, git-backed issue tracker** designed specifically for AI-supervised coding workflows. It replaces messy markdown TODO lists with a dependency-aware graph database, allowing AI agents to handle long-horizon tasks without losing context.
+
+## The Problem
+
+AI coding agents struggle with long-running projects because they:
+- Lose context between sessions
+- Can't track dependencies between tasks
+- Create messy markdown TODO lists that become outdated
+- Have no way to coordinate work across multiple agents or branches
+
+## The Solution
+
+Beads provides **persistent, structured memory** for coding agents:
+
+<CardGroup cols={2}>
+  <Card title="Dependency-Aware" icon="diagram-project">
+    Track blockers and relationships between issues. Only show work that's ready to be done.
+  </Card>
+  <Card title="Git-Friendly" icon="code-branch">
+    Dolt-powered version control with cell-level merge and native sync. Works seamlessly with branches and forks.
+  </Card>
+  <Card title="Zero Conflicts" icon="shield-check">
+    Hash-based IDs (`bd-a1b2`) prevent collisions when multiple agents or branches work concurrently.
+  </Card>
+  <Card title="Agent-Optimized" icon="robot">
+    JSON output, ready work detection, and automatic dependency tracking designed for AI workflows.
+  </Card>
+</CardGroup>
+
+## Key Features
+
+### Dolt-Powered Storage
+
+Beads uses [Dolt](https://github.com/dolthub/dolt) as its storage backend - a version-controlled SQL database:
+
+- **Version control built-in**: Every write auto-commits to Dolt history
+- **Cell-level merge**: Smarter conflict resolution than file-based systems
+- **Native sync**: Push/pull to Dolt remotes (DoltHub, S3, GCS, etc.)
+- **SQL queries**: Full SQL access for custom reporting and analysis
+
+### Hash-Based IDs
+
+Issue IDs are content-based hashes (e.g., `bd-a1b2`, `bd-f14c`) that prevent collisions:
+
+```bash
+# Multiple agents can create issues simultaneously
+Agent 1: bd create "Add auth" -p 1  # → bd-a3f8
+Agent 2: bd create "Fix bug" -p 0   # → bd-b9d2
+# No conflicts - different hashes!
+```
+
+### Hierarchical Organization
+
+Organize large features with epic/task/subtask hierarchies:
+
+```bash
+# Create epic
+bd create "Auth System" -t epic -p 1  # → bd-a3f8
+
+# Create child tasks
+bd create "Login UI" --parent bd-a3f8      # → bd-a3f8.1
+bd create "Backend validation" --parent bd-a3f8  # → bd-a3f8.2
+bd create "Integration tests" --parent bd-a3f8   # → bd-a3f8.3
+```
+
+### Dependency Tracking
+
+Four types of relationships:
+
+- **blocks**: Task B can't start until A is done
+- **parent-child**: Hierarchical organization (epics → tasks → subtasks)
+- **relates_to**: General association between issues
+- **discovered-from**: Track work discovered during implementation
+
+```bash
+# Add blocker dependency
+bd dep add bd-f14c bd-a1b2  # bd-f14c blocked by bd-a1b2
+
+# Find ready work (no blockers)
+bd ready
+```
+
+### Ready Work Detection
+
+Beads automatically identifies which tasks are ready to work on:
+
+```bash
+$ bd ready
+📋 Ready work (2 issues with no blockers):
+
+1. [P0] bd-a1b2: Fix critical auth bug
+2. [P1] bd-f14c: Set up database schema
+```
+
+Blocked issues won't appear until their dependencies are resolved.
+
+## Architecture
+
+<Steps>
+  <Step title="Storage Layer">
+    Dolt database in `.beads/dolt/` provides version-controlled SQL storage with automatic commits and native sync.
+  </Step>
+  <Step title="CLI Layer">
+    The `bd` command provides a rich CLI interface with JSON output for programmatic access.
+  </Step>
+  <Step title="Git Integration">
+    Optional git hooks auto-sync the database on git operations (pull, push, checkout, merge).
+  </Step>
+</Steps>
+
+## How It Works
+
+1. **Initialize** in your project: `bd init`
+2. **Create issues** with dependencies: `bd create "Task" --deps bd-123`
+3. **Find ready work**: `bd ready` shows unblocked tasks
+4. **Claim and work**: `bd update bd-456 --claim`
+5. **Complete**: `bd close bd-456 --reason "Done"`
+6. **Sync**: `bd dolt push` sends to remote (or use git hooks for auto-sync)
+
+## Use Cases
+
+### AI Agent Workflows
+
+```bash
+# Agent checks for work
+bd ready --json
+
+# Agent claims a task atomically
+bd update bd-a1b2 --claim --json
+
+# Agent discovers new work during implementation
+bd create "Found edge case" --deps discovered-from:bd-a1b2 --json
+
+# Agent completes work
+bd close bd-a1b2 --reason "Implemented with tests" --json
+```
+
+### Multi-Branch Development
+
+Hash-based IDs prevent merge conflicts:
+
+```bash
+# Branch 1
+git checkout -b feature-auth
+bd create "Add OAuth" -p 1  # → bd-a3f8
+
+# Branch 2
+git checkout -b feature-api
+bd create "API endpoints" -p 1  # → bd-f14c
+
+# Merge both - no ID conflicts!
+git merge feature-auth feature-api
+```
+
+### Contributor vs Maintainer Modes
+
+**Maintainers** (with push access):
+- Issues stored in-repo at `.beads/`
+- Shared with team via git
+
+**Contributors** (fork workflow):
+- Issues routed to separate planning repo
+- Keeps experimental work out of PRs
+- Set via `bd init --contributor`
+
+## Platforms
+
+Beads works on:
+- macOS
+- Linux
+- Windows
+- FreeBSD
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running in 2 minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Install via Homebrew, npm, Go, or shell script
+  </Card>
+</CardGroup>

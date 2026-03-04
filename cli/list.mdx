@@ -1,0 +1,630 @@
+---
+title: 'bd list'
+description: 'Search and filter issues with powerful queries'
+---
+
+## Usage
+
+```bash
+bd list [flags]
+```
+
+## Description
+
+Search and filter issues using a wide range of criteria. Supports text search, date ranges, label filtering, metadata queries, and more.
+
+## Parameters
+
+### Core Filters
+
+<ParamField path="--status" type="string">
+  Filter by status: `open`, `in_progress`, `blocked`, `deferred`, `closed`, `pinned`, `hooked`. Default: non-closed, non-pinned.
+</ParamField>
+
+<ParamField path="--priority" type="string">
+  Filter by priority: 0-4 or P0-P4
+</ParamField>
+
+<ParamField path="--type" type="string">
+  Filter by type: `bug`, `feature`, `task`, `epic`, `chore`, `decision`, `merge-request`, `molecule`, `gate`, `convoy`. Aliases: `mr`→`merge-request`, `feat`→`feature`, `mol`→`molecule`, `dec`/`adr`→`decision`
+</ParamField>
+
+<ParamField path="--assignee" type="string">
+  Filter by assignee
+</ParamField>
+
+### Label Filters
+
+<ParamField path="--label" type="string[]">
+  Filter by labels (AND: must have ALL). Can combine with `--label-any`.
+</ParamField>
+
+<ParamField path="--label-any" type="string[]">
+  Filter by labels (OR: must have AT LEAST ONE). Can combine with `--label`.
+</ParamField>
+
+<ParamField path="--label-pattern" type="string">
+  Filter by label glob pattern (e.g., `tech-*` matches `tech-debt`, `tech-legacy`)
+</ParamField>
+
+<ParamField path="--label-regex" type="string">
+  Filter by label regex pattern (e.g., `tech-(debt|legacy)`)
+</ParamField>
+
+<ParamField path="--no-labels" type="boolean">
+  Filter issues with no labels
+</ParamField>
+
+### Text Search
+
+<ParamField path="--title" type="string">
+  Filter by title text (case-insensitive substring match)
+</ParamField>
+
+<ParamField path="--title-contains" type="string">
+  Filter by title substring (case-insensitive)
+</ParamField>
+
+<ParamField path="--desc-contains" type="string">
+  Filter by description substring (case-insensitive)
+</ParamField>
+
+<ParamField path="--notes-contains" type="string">
+  Filter by notes substring (case-insensitive)
+</ParamField>
+
+### Date Ranges
+
+<ParamField path="--created-after" type="string">
+  Filter issues created after date (YYYY-MM-DD or RFC3339)
+</ParamField>
+
+<ParamField path="--created-before" type="string">
+  Filter issues created before date (YYYY-MM-DD or RFC3339)
+</ParamField>
+
+<ParamField path="--updated-after" type="string">
+  Filter issues updated after date
+</ParamField>
+
+<ParamField path="--updated-before" type="string">
+  Filter issues updated before date
+</ParamField>
+
+<ParamField path="--closed-after" type="string">
+  Filter issues closed after date
+</ParamField>
+
+<ParamField path="--closed-before" type="string">
+  Filter issues closed before date
+</ParamField>
+
+### Priority Ranges
+
+<ParamField path="--priority-min" type="string">
+  Filter by minimum priority (inclusive, 0-4 or P0-P4)
+</ParamField>
+
+<ParamField path="--priority-max" type="string">
+  Filter by maximum priority (inclusive, 0-4 or P0-P4)
+</ParamField>
+
+### Hierarchy
+
+<ParamField path="--parent" type="string">
+  Filter by parent issue ID (shows children of specified issue)
+</ParamField>
+
+<ParamField path="--no-parent" type="boolean">
+  Exclude child issues (show only top-level issues)
+</ParamField>
+
+### Scheduling
+
+<ParamField path="--deferred" type="boolean">
+  Show only issues with defer_until set
+</ParamField>
+
+<ParamField path="--defer-after" type="string">
+  Filter issues deferred after date
+</ParamField>
+
+<ParamField path="--defer-before" type="string">
+  Filter issues deferred before date
+</ParamField>
+
+<ParamField path="--due-after" type="string">
+  Filter issues due after date
+</ParamField>
+
+<ParamField path="--due-before" type="string">
+  Filter issues due before date
+</ParamField>
+
+<ParamField path="--overdue" type="boolean">
+  Show only issues with due_at in the past (not closed)
+</ParamField>
+
+### Metadata
+
+<ParamField path="--metadata-field" type="string[]">
+  Filter by metadata field (format: `key=value`, repeatable)
+</ParamField>
+
+<ParamField path="--has-metadata-key" type="string">
+  Filter issues that have this metadata key set
+</ParamField>
+
+### Special Filters
+
+<ParamField path="--id" type="string">
+  Filter by specific issue IDs (comma-separated, e.g., `bd-1,bd-5,bd-10`)
+</ParamField>
+
+<ParamField path="--spec" type="string">
+  Filter by spec_id prefix
+</ParamField>
+
+<ParamField path="--empty-description" type="boolean">
+  Filter issues with empty or missing description
+</ParamField>
+
+<ParamField path="--no-assignee" type="boolean">
+  Filter issues with no assignee
+</ParamField>
+
+<ParamField path="--pinned" type="boolean">
+  Show only pinned issues
+</ParamField>
+
+<ParamField path="--no-pinned" type="boolean">
+  Exclude pinned issues (default)
+</ParamField>
+
+<ParamField path="--ready" type="boolean">
+  Show only ready issues (status=open, excludes hooked/in_progress/blocked/deferred)
+</ParamField>
+
+<ParamField path="--mol-type" type="string">
+  Filter by molecule type: `swarm`, `patrol`, or `work`
+</ParamField>
+
+<ParamField path="--wisp-type" type="string">
+  Filter by wisp type: `heartbeat`, `ping`, `patrol`, `gc_report`, `recovery`, `error`, `escalation`
+</ParamField>
+
+### Display
+
+<ParamField path="--limit" type="integer" default="50">
+  Limit results (default 50, use 0 for unlimited)
+</ParamField>
+
+<ParamField path="--all" type="boolean">
+  Show all issues including closed (overrides default filter)
+</ParamField>
+
+<ParamField path="--long" type="boolean">
+  Show detailed multi-line output for each issue
+</ParamField>
+
+<ParamField path="--sort" type="string">
+  Sort by field: `priority`, `created`, `updated`, `closed`, `status`, `id`, `title`, `type`, `assignee`
+</ParamField>
+
+<ParamField path="--reverse" type="boolean">
+  Reverse sort order
+</ParamField>
+
+<ParamField path="--pretty" type="boolean">
+  Display issues in a tree format with status/priority symbols
+</ParamField>
+
+<ParamField path="--tree" type="boolean">
+  Alias for `--pretty`: hierarchical tree format
+</ParamField>
+
+<ParamField path="--watch" type="boolean">
+  Watch for changes and auto-update display (implies `--pretty`)
+</ParamField>
+
+<ParamField path="--no-pager" type="boolean">
+  Disable pager output
+</ParamField>
+
+### Advanced
+
+<ParamField path="--format" type="string">
+  Output format: `digraph` (for golang.org/x/tools/cmd/digraph), `dot` (Graphviz), or Go template
+</ParamField>
+
+<ParamField path="--include-templates" type="boolean">
+  Include template molecules in output
+</ParamField>
+
+<ParamField path="--include-gates" type="boolean">
+  Include gate issues in output (normally hidden)
+</ParamField>
+
+<ParamField path="--include-infra" type="boolean">
+  Include infrastructure beads (agent/rig/role/message) in output
+</ParamField>
+
+<ParamField path="--rig" type="string">
+  Query a different rig's database (e.g., `--rig gastown`, `--rig gt-`, `--rig gt`)
+</ParamField>
+
+### Output
+
+<ParamField path="--json" type="boolean">
+  Output JSON for agent use
+</ParamField>
+
+## Examples
+
+### Basic Queries
+
+<CodeGroup>
+```bash All Open Issues
+bd list --json
+```
+
+```bash By Status
+bd list --status in_progress --json
+```
+
+```bash By Priority
+bd list --priority 1 --json
+```
+
+```bash By Type
+bd list --type bug --json
+```
+
+```bash By Assignee
+bd list --assignee alice --json
+```
+</CodeGroup>
+
+### Label Filtering
+
+<CodeGroup>
+```bash Must Have All Labels (AND)
+bd list --label backend --label api --json
+```
+
+```bash Must Have Any Label (OR)
+bd list --label-any frontend,mobile --json
+```
+
+```bash Combined AND + OR
+bd list --label backend --label-any urgent,p0 --json
+# backend AND (urgent OR p0)
+```
+
+```bash Label Pattern
+bd list --label-pattern "tech-*" --json
+# Matches tech-debt, tech-legacy, etc.
+```
+
+```bash Label Regex
+bd list --label-regex "(bug|security)" --json
+```
+</CodeGroup>
+
+### Text Search
+
+<CodeGroup>
+```bash Title Search
+bd list --title "login" --json
+```
+
+```bash Description Search
+bd list --desc-contains "authentication" --json
+```
+
+```bash Notes Search
+bd list --notes-contains "TODO" --json
+```
+</CodeGroup>
+
+### Date Filters
+
+<CodeGroup>
+```bash Created This Week
+bd list --created-after 2025-01-13 --json
+```
+
+```bash Updated Today
+bd list --updated-after 2025-01-15 --json
+```
+
+```bash Closed Last Month
+bd list \
+  --closed-after 2024-12-01 \
+  --closed-before 2024-12-31 \
+  --json
+```
+</CodeGroup>
+
+### Priority Ranges
+
+<CodeGroup>
+```bash High Priority (P0-P1)
+bd list --priority-min 0 --priority-max 1 --json
+```
+
+```bash Low Priority (P3-P4)
+bd list --priority-min 3 --json
+```
+</CodeGroup>
+
+### Hierarchy
+
+<CodeGroup>
+```bash Epic Children
+bd list --parent bd-epic-123 --json
+```
+
+```bash Top-Level Only
+bd list --no-parent --json
+```
+
+```bash Epic Tree
+bd list --parent bd-epic-123 --tree
+```
+</CodeGroup>
+
+### Time-Based
+
+<CodeGroup>
+```bash Deferred Issues
+bd list --deferred --json
+```
+
+```bash Overdue Issues
+bd list --overdue --json
+```
+
+```bash Due This Week
+bd list \
+  --due-after 2025-01-15 \
+  --due-before 2025-01-22 \
+  --json
+```
+</CodeGroup>
+
+### Metadata
+
+<CodeGroup>
+```bash By Metadata Field
+bd list --metadata-field team=platform --json
+```
+
+```bash Has Metadata Key
+bd list --has-metadata-key sprint --json
+```
+
+```bash Multiple Metadata Filters
+bd list \
+  --metadata-field team=platform \
+  --metadata-field priority=high \
+  --json
+```
+</CodeGroup>
+
+### Special Queries
+
+<CodeGroup>
+```bash Specific IDs
+bd list --id bd-1,bd-5,bd-10 --json
+```
+
+```bash No Description
+bd list --empty-description --json
+```
+
+```bash Unassigned
+bd list --no-assignee --json
+```
+
+```bash Ready Work
+bd list --ready --json
+```
+</CodeGroup>
+
+### Sorting
+
+<CodeGroup>
+```bash By Priority
+bd list --sort priority --json
+```
+
+```bash By Created Date (Newest)
+bd list --sort created --json
+```
+
+```bash By Updated Date (Oldest)
+bd list --sort updated --reverse --json
+```
+</CodeGroup>
+
+### Cross-Rig
+
+<CodeGroup>
+```bash Query Different Rig
+bd list --rig gastown --json
+```
+
+```bash All Rigs
+bd list --rig beads --json
+bd list --rig gastown --json
+```
+</CodeGroup>
+
+### Watch Mode
+
+<CodeGroup>
+```bash Auto-Refresh
+bd list --status in_progress --watch
+# Updates every 2 seconds, press Ctrl+C to exit
+```
+</CodeGroup>
+
+## JSON Output
+
+With `--json` flag:
+
+```json
+[
+  {
+    "issue": {
+      "id": "bd-123",
+      "title": "Fix login bug",
+      "status": "open",
+      "priority": 1,
+      "issue_type": "bug",
+      "assignee": "alice",
+      "labels": ["backend", "security"],
+      "dependencies": [
+        {
+          "issue_id": "bd-123",
+          "depends_on_id": "bd-124",
+          "type": "blocks"
+        }
+      ]
+    },
+    "dependency_count": 1,
+    "dependent_count": 3,
+    "comment_count": 2,
+    "parent": "bd-epic-auth"
+  }
+]
+```
+
+## Complex Queries
+
+### Stale Issues
+
+```bash
+bd list \
+  --status open \
+  --updated-before 2024-12-01 \
+  --no-assignee \
+  --json
+```
+
+### Sprint Planning
+
+```bash
+bd list \
+  --metadata-field sprint=42 \
+  --status open,in_progress \
+  --sort priority \
+  --json
+```
+
+### Security Issues
+
+```bash
+bd list \
+  --label-any security,cve \
+  --priority-max 1 \
+  --sort created \
+  --json
+```
+
+### Technical Debt
+
+```bash
+bd list \
+  --label-pattern "tech-*" \
+  --status open \
+  --sort updated \
+  --reverse \
+  --json
+```
+
+## Output Formats
+
+### Compact (Default)
+
+```
+bd-123 [P1] [bug] (open) @alice: Fix login bug [backend, security]
+bd-124 [P2] [task] (in_progress) @bob: Add logging
+```
+
+### Long Format
+
+```
+Found 2 issues:
+
+bd-123
+  Title: Fix login bug
+  Status: open
+  Priority: P1
+  Type: bug
+  Assignee: alice
+  Labels: backend, security
+  Created: 2025-01-15 10:00
+  Updated: 2025-01-15 12:30
+
+bd-124
+  Title: Add logging
+  Status: in_progress
+  Priority: P2
+  Type: task
+  Assignee: bob
+  Created: 2025-01-14 09:00
+  Updated: 2025-01-15 11:00
+```
+
+### Pretty/Tree Format
+
+```
+● P1 [bug] bd-123: Fix login bug @alice
+  Labels: backend, security
+  
+○ P2 [task] bd-124: Add logging @bob
+  Epic: Infrastructure
+```
+
+## Default Filters
+
+By default, `bd list` excludes:
+
+- Closed issues (use `--all` or `--status closed` to include)
+- Pinned issues (use `--all` or `--pinned` to include)
+- Template molecules (use `--include-templates`)
+- Gate issues (use `--include-gates`)
+- Infrastructure beads (use `--include-infra`)
+
+## Best Practices
+
+### For Agents
+
+1. **Always use `--json`** for parsing
+2. **Use `--limit`** to control result size
+3. **Use `--sort`** for deterministic ordering
+4. **Filter by metadata** for agent-specific queries
+5. **Use `--ready`** instead of manual status filtering for claimable work
+
+### For Humans
+
+1. **Use `--pretty`** for visual scanning
+2. **Combine filters** for precise queries
+3. **Use `--watch`** during active development
+4. **Save complex queries** as shell aliases
+
+### Performance Tips
+
+1. **Add `--limit`** for large result sets
+2. **Use specific filters** instead of text search when possible
+3. **Avoid `--all` unless needed** (excludes closed by default)
+4. **Use `--rig`** for targeted cross-rig queries
+
+## Related Commands
+
+- [`bd ready`](/cli/ready) - Find unblocked work (better than `--ready`)
+- [`bd show`](/cli/show) - View detailed issue info
+- [`bd update`](/cli/update) - Modify filtered issues
+- [`bd blocked`](/cli/ready#blocked) - Show blocked issues

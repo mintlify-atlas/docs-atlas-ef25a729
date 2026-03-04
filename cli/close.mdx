@@ -1,0 +1,387 @@
+---
+title: 'bd close'
+description: 'Close completed issues with reason'
+---
+
+## Usage
+
+```bash
+bd close [id...] [flags]
+```
+
+## Description
+
+Close one or more issues. If no ID is provided, closes the last touched issue. Validates that gates are satisfied and no open blockers exist before closing.
+
+## Parameters
+
+<ParamField path="id" type="string[]">
+  Issue IDs to close. If omitted, uses the last touched issue from recent create/update/show/close.
+</ParamField>
+
+### Reason
+
+<ParamField path="--reason" type="string" default="Closed">
+  Reason for closing. Used in audit trail.
+</ParamField>
+
+<ParamField path="--resolution" type="string">
+  Alias for `--reason` (Jira CLI convention)
+</ParamField>
+
+<ParamField path="--message" type="string">
+  Alias for `--reason` (git commit convention)
+</ParamField>
+
+<ParamField path="--comment" type="string">
+  Alias for `--reason`
+</ParamField>
+
+### Options
+
+<ParamField path="--force" type="boolean">
+  Force close pinned issues or issues with unsatisfied gates
+</ParamField>
+
+<ParamField path="--continue" type="boolean">
+  Auto-advance to next step in molecule after closing
+</ParamField>
+
+<ParamField path="--no-auto" type="boolean">
+  With `--continue`, show next step but don't claim it
+</ParamField>
+
+<ParamField path="--suggest-next" type="boolean">
+  Show newly unblocked issues after closing
+</ParamField>
+
+<ParamField path="--session" type="string">
+  Claude Code session ID (or set `CLAUDE_SESSION_ID` env var)
+</ParamField>
+
+### Output
+
+<ParamField path="--json" type="boolean">
+  Output JSON for agent use
+</ParamField>
+
+## Examples
+
+### Basic Close
+
+<CodeGroup>
+```bash With Reason
+bd close bd-123 --reason "Fixed authentication bug" --json
+```
+
+```bash Multiple Issues
+bd close bd-123 bd-124 bd-125 --reason "Completed sprint tasks" --json
+```
+
+```bash Last Touched
+bd close --reason "Done" --json
+# Closes last create/update/show/close issue
+```
+</CodeGroup>
+
+### Reason Aliases
+
+<CodeGroup>
+```bash Git Style
+bd close bd-123 -m "Fixed bug" --json
+```
+
+```bash Jira Style
+bd close bd-123 --resolution "Fixed" --json
+```
+
+```bash Comment Style
+bd close bd-123 --comment "Merged PR" --json
+```
+</CodeGroup>
+
+### Force Close
+
+<CodeGroup>
+```bash Override Blocker Check
+bd close bd-123 --force --json
+# Closes even if other issues depend on it
+```
+
+```bash Close Pinned Issue
+bd close bd-pinned --force --json
+```
+
+```bash Unsatisfied Gate
+bd close bd-gate --force --json
+```
+</CodeGroup>
+
+### Continue Workflow
+
+<CodeGroup>
+```bash Auto-Advance
+bd close bd-mol-abc.1 --continue --json
+# Closes step 1, claims and shows step 2
+```
+
+```bash Show Next Without Claiming
+bd close bd-mol-abc.1 --continue --no-auto --json
+# Shows next step but doesn't claim it
+```
+</CodeGroup>
+
+### Suggest Next
+
+<CodeGroup>
+```bash See Unblocked Work
+bd close bd-123 --suggest-next --json
+# Shows issues that were blocked by bd-123
+```
+</CodeGroup>
+
+### Session Tracking
+
+<CodeGroup>
+```bash With Session ID
+bd close bd-123 --session "claude-session-abc" --json
+```
+
+```bash From Environment
+export CLAUDE_SESSION_ID="claude-session-abc"
+bd close bd-123 --json
+```
+</CodeGroup>
+
+## JSON Output
+
+With `--json` flag:
+
+```json
+[
+  {
+    "id": "bd-123",
+    "title": "Fix login bug",
+    "status": "closed",
+    "priority": 1,
+    "closed_at": "2025-01-15T14:30:00Z",
+    "closed_by": "agent-name",
+    "closed_by_session": "claude-session-abc"
+  }
+]
+```
+
+With `--suggest-next`:
+
+```json
+{
+  "closed": [
+    {
+      "id": "bd-123",
+      "title": "Fix login bug",
+      "status": "closed"
+    }
+  ],
+  "unblocked": [
+    {
+      "id": "bd-124",
+      "title": "Deploy hotfix",
+      "priority": 0,
+      "status": "open"
+    }
+  ]
+}
+```
+
+With `--continue`:
+
+```json
+{
+  "closed": [
+    {
+      "id": "bd-mol-abc.1",
+      "status": "closed"
+    }
+  ],
+  "continue": {
+    "next_step": {
+      "id": "bd-mol-abc.2",
+      "title": "Run tests",
+      "status": "in_progress",
+      "assignee": "agent-name"
+    },
+    "claimed": true
+  }
+}
+```
+
+## Validation
+
+### Blocker Check
+
+By default, issues with open dependents cannot be closed:
+
+```bash
+bd close bd-123 --json
+# Error: cannot close bd-123: blocked by open issues [bd-124, bd-125]
+# Use --force to override
+```
+
+Use `--force` to override:
+
+```bash
+bd close bd-123 --force --json
+# Success: closed despite open blockers
+```
+
+### Gate Satisfaction
+
+Machine-checkable gates must be satisfied:
+
+```bash
+bd close bd-gate-pr --json
+# Checks if GitHub PR is merged
+# Error: gate condition not satisfied: PR #123 not merged
+```
+
+Gate types:
+- `gh:pr` - GitHub pull request must be merged
+- `gh:run` - GitHub Actions run must succeed
+- `timer` - Time must have elapsed
+- `bead` - Dependent issue must be closed
+
+Use `--force` to skip gate checks:
+
+```bash
+bd close bd-gate-pr --force --json
+```
+
+### Pinned Issues
+
+Pinned issues require `--force`:
+
+```bash
+bd close bd-pinned --json
+# Error: cannot close pinned issue
+
+bd close bd-pinned --force --json
+# Success
+```
+
+## Auto-Close Molecules
+
+When closing a molecule step, the parent molecule is automatically closed if all steps are complete:
+
+```bash
+bd close bd-mol-abc.3 --json
+# If this was the last open step:
+# ✓ Closed bd-mol-abc.3
+# ✓ Auto-closed completed molecule bd-mol-abc
+```
+
+## Continue Workflow
+
+The `--continue` flag enables sequential molecule execution:
+
+1. Close current step
+2. Find next ready step in same molecule
+3. Optionally claim it (unless `--no-auto`)
+4. Return next step info
+
+```bash
+# Agent workflow for molecule
+while true; do
+  # Work on current step
+  # ...
+  
+  # Close and advance
+  result=$(bd close --current --continue --json)
+  
+  # Check if there's a next step
+  next_id=$(echo $result | jq -r '.continue.next_step.id')
+  if [ "$next_id" = "null" ]; then
+    echo "Molecule complete!"
+    break
+  fi
+  
+  echo "Starting next step: $next_id"
+done
+```
+
+## Suggest Next
+
+The `--suggest-next` flag shows work that was unblocked:
+
+```bash
+bd close bd-123 --suggest-next --json
+```
+
+Returns:
+- Issues that were blocked by bd-123
+- Now have no open blockers
+- Sorted by priority
+
+Useful for agents to immediately claim the next highest-priority work.
+
+## Session Tracking
+
+Session IDs track which AI session closed an issue:
+
+```bash
+# Set via environment
+export CLAUDE_SESSION_ID="session-2025-01-15-abc"
+bd close bd-123 --json
+
+# Or via flag
+bd close bd-123 --session "session-2025-01-15-abc" --json
+```
+
+Stored in `closed_by_session` field for analytics and debugging.
+
+## Best Practices
+
+### For Agents
+
+1. **Always provide `--reason`** with meaningful context
+2. **Use `--json`** for parsing
+3. **Use `--continue`** for molecule workflows
+4. **Use `--suggest-next`** to find next work
+5. **Set `CLAUDE_SESSION_ID`** for tracking
+
+### For Humans
+
+1. **Write descriptive reasons** for audit trail
+2. **Check dependencies** before closing (`bd show`)
+3. **Use `--force`** sparingly (indicates process issue)
+4. **Close parent epics** after all children are done
+
+### Agent Workflow
+
+```bash
+# Standard workflow
+bd update bd-123 --claim --json
+# ... do work ...
+bd close bd-123 --reason "Implemented feature X" --json
+
+# Molecule workflow
+bd update bd-mol-abc.1 --claim --json
+# ... do work ...
+bd close bd-mol-abc.1 --continue --json
+# Now working on bd-mol-abc.2
+
+# With next work suggestion
+bd close bd-123 --suggest-next --json | jq -r '.unblocked[0].id'
+# Get next issue to work on
+```
+
+## Exit Codes
+
+- `0` - All issues closed successfully
+- `1` - One or more issues failed to close (validation error, already closed, etc.)
+
+## Related Commands
+
+- [`bd update --status closed`](/cli/update) - Alternative way to close
+- [`bd show`](/cli/show) - Check dependencies before closing
+- [`bd dep list --direction up`](/cli/dep) - See what this issue blocks
+- [`bd ready`](/cli/ready) - Find next work after closing

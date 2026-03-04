@@ -1,0 +1,391 @@
+---
+title: 'bd show'
+description: 'View detailed issue information with full audit trail'
+---
+
+## Usage
+
+```bash
+bd show [id...] [flags]
+```
+
+## Description
+
+Show detailed information about one or more issues, including description, design notes, dependencies, comments, and full audit trail.
+
+## Parameters
+
+<ParamField path="id" type="string[]">
+  Issue IDs to display. If omitted with `--current`, shows the active issue. Supports multiple IDs to view several issues at once.
+</ParamField>
+
+### Display Options
+
+<ParamField path="--short" type="boolean">
+  Show compact one-line output per issue
+</ParamField>
+
+<ParamField path="--long" type="boolean">
+  Show all available fields (extended metadata, agent identity, gate fields, etc.)
+</ParamField>
+
+<ParamField path="--current" type="boolean">
+  Show the currently active issue (in-progress, hooked, or last touched)
+</ParamField>
+
+### Special Views
+
+<ParamField path="--thread" type="boolean">
+  Show full conversation thread (for message issues)
+</ParamField>
+
+<ParamField path="--refs" type="boolean">
+  Show issues that reference this issue (reverse lookup)
+</ParamField>
+
+<ParamField path="--children" type="boolean">
+  Show only the children of this issue
+</ParamField>
+
+### Time Travel
+
+<ParamField path="--as-of" type="string">
+  Show issue as it existed at a specific commit hash or branch (requires Dolt)
+</ParamField>
+
+### Advanced
+
+<ParamField path="--id" type="string[]">
+  Issue ID (use for IDs that look like flags, e.g., `--id=gt--xyz`)
+</ParamField>
+
+<ParamField path="--local-time" type="boolean">
+  Show timestamps in local time instead of UTC
+</ParamField>
+
+<ParamField path="--watch" type="boolean">
+  Watch for changes and auto-refresh display
+</ParamField>
+
+### Output
+
+<ParamField path="--json" type="boolean">
+  Output JSON for agent use
+</ParamField>
+
+## Examples
+
+### Basic Display
+
+<CodeGroup>
+```bash Single Issue
+bd show bd-123 --json
+```
+
+```bash Multiple Issues
+bd show bd-123 bd-124 bd-125 --json
+```
+
+```bash Current Issue
+bd show --current --json
+```
+</CodeGroup>
+
+### Display Modes
+
+<CodeGroup>
+```bash Compact
+bd show bd-123 --short
+# bd-123: Fix login bug [P1] (open) @alice
+```
+
+```bash Full Details
+bd show bd-123 --long --json
+```
+
+```bash Watch Mode
+bd show bd-123 --watch
+# Auto-refreshes on changes
+```
+</CodeGroup>
+
+### Special Views
+
+<CodeGroup>
+```bash Children
+bd show bd-epic --children --json
+```
+
+```bash References
+bd show bd-123 --refs --json
+# Shows issues that depend on or reference bd-123
+```
+
+```bash Message Thread
+bd show bd-msg-123 --thread --json
+```
+</CodeGroup>
+
+### Time Travel
+
+<CodeGroup>
+```bash Historical View
+bd show bd-123 --as-of abc123def --json
+# Show issue at commit abc123def
+```
+
+```bash Branch View
+bd show bd-123 --as-of feature-branch --json
+```
+</CodeGroup>
+
+### Flag-Like IDs
+
+<CodeGroup>
+```bash ID Starting with Dash
+bd show --id=gt--xyz --json
+```
+
+```bash Multiple Flag-Like IDs
+bd show --id=-abc --id=--xyz --json
+```
+</CodeGroup>
+
+## JSON Output
+
+With `--json` flag:
+
+```json
+[
+  {
+    "issue": {
+      "id": "bd-123",
+      "title": "Fix login bug",
+      "description": "Users cannot log in after password reset",
+      "status": "open",
+      "priority": 1,
+      "issue_type": "bug",
+      "assignee": "alice",
+      "created_at": "2025-01-15T10:00:00Z",
+      "updated_at": "2025-01-15T12:30:00Z",
+      "created_by": "bob",
+      "owner": "beads"
+    },
+    "labels": ["backend", "security"],
+    "dependencies": [
+      {
+        "id": "bd-124",
+        "title": "Update auth library",
+        "status": "in_progress",
+        "priority": 1,
+        "dependency_type": "blocks"
+      }
+    ],
+    "dependents": [
+      {
+        "id": "bd-125",
+        "title": "Deploy hotfix",
+        "status": "open",
+        "priority": 0,
+        "dependency_type": "blocks"
+      }
+    ],
+    "comments": [
+      {
+        "id": "cmt-1",
+        "author": "alice",
+        "text": "Root cause identified",
+        "created_at": "2025-01-15T11:00:00Z"
+      }
+    ],
+    "parent": "bd-epic-auth"
+  }
+]
+```
+
+## Terminal Output
+
+### Default View
+
+```
+bd-123: Fix login bug [P1] (open)
+Owner: beads · Type: bug | Created: 2025-01-15 10:00 · Updated: 2025-01-15 12:30
+
+DESCRIPTION
+Users cannot log in after password reset. The session token is not
+invalidated properly, causing authentication failures.
+
+DESIGN
+Update the auth middleware to invalidate old tokens before issuing new ones.
+Add validation in the login endpoint.
+
+ACCEPTANCE CRITERIA
+- Users can log in after password reset
+- Old tokens are invalidated
+- New tokens are issued correctly
+
+LABELS: backend, security
+
+DEPENDS ON
+→ bd-124: Update auth library [P1] (in_progress)
+
+BLOCKS
+← bd-125: Deploy hotfix [P0] (open)
+
+COMMENTS
+  2025-01-15 11:00 alice
+    Root cause identified in auth middleware
+```
+
+### Short View
+
+```
+bd-123: Fix login bug [P1] (open) @alice
+bd-124: Update auth library [P1] (in_progress) @bob
+bd-125: Deploy hotfix [P0] (open) @unassigned
+```
+
+### Long View
+
+Includes additional fields:
+
+```
+EXTENDED METADATA
+  External Ref: JIRA-123
+  Spec ID: spec-auth-v2
+  Estimated: 120 minutes
+  Due: 2025-01-20 17:00
+  Defer Until: (none)
+  Ephemeral: false
+  Metadata: {"team":"platform","sprint":42}
+
+AGENT IDENTITY
+  Rig: gastown
+  Role Type: polecat
+  Mol Type: work
+
+GATE FIELDS
+  Await Type: gh:pr
+  Await ID: 123
+  Await Gate: all-children
+```
+
+## Current Issue Resolution
+
+With `--current` flag, resolves the active issue using this priority:
+
+1. **In-progress issues** assigned to current actor
+2. **Hooked issues** assigned to current actor
+3. **Last touched issue** from recent create/update/show/close
+
+```bash
+# Agent workflow
+bd update bd-123 --claim
+bd show --current --json
+# Shows bd-123 (in-progress and assigned to you)
+```
+
+## Watch Mode
+
+Continuously monitor an issue for changes:
+
+```bash
+bd show bd-123 --watch
+```
+
+Uses polling (not filesystem watching) because Dolt stores data server-side. Refreshes every 2 seconds.
+
+Press Ctrl+C to exit.
+
+## Time Travel with Dolt
+
+View historical versions of issues:
+
+<CodeGroup>
+```bash Specific Commit
+bd show bd-123 --as-of abc123def --json
+```
+
+```bash Branch View
+bd show bd-123 --as-of feature-branch --json
+```
+
+```bash Compare Versions
+# Before
+bd show bd-123 --as-of HEAD~1 --json > before.json
+
+# After
+bd show bd-123 --json > after.json
+
+# Diff
+diff before.json after.json
+```
+</CodeGroup>
+
+<Info>
+  Time travel requires Dolt backend. Not available with SQLite.
+</Info>
+
+## Dependency Display
+
+Dependencies are grouped by type:
+
+### PARENT
+Parent-child relationships (issue is child)
+
+### DEPENDS ON
+Blocking dependencies (issue depends on these)
+
+### DISCOVERED FROM
+Discovery tracking (issue was found during these)
+
+### CHILDREN
+Hierarchical children (issue is parent)
+
+### BLOCKS
+Reverse blocking (issue blocks these)
+
+### DISCOVERED
+Reverse discovery (issue led to discovery of these)
+
+### RELATED
+Bidirectional informational links (deduplicated)
+
+## Best Practices
+
+### For Agents
+
+1. **Use `--json`** for parsing
+2. **Use `--current`** to check active work
+3. **Use `--short`** for bulk scanning
+4. **Parse dependencies** to understand blocking state
+
+### For Humans
+
+1. **Use default view** for detailed context
+2. **Use `--long`** when debugging
+3. **Use `--watch`** during active development
+4. **Check dependencies** before starting work
+
+### Agent Workflow
+
+```bash
+# Before starting work
+bd show bd-123 --json | jq '.dependencies'
+# Check if blockers are all closed
+
+# During work
+bd show --current --json
+# Verify you're working on the right issue
+
+# After work
+bd show bd-123 --json | jq '.dependents'
+# See what you just unblocked
+```
+
+## Related Commands
+
+- [`bd list`](/cli/list) - Search for issues
+- [`bd update`](/cli/update) - Modify issues
+- [`bd dep list`](/cli/dep) - List dependencies
+- [`bd ready`](/cli/ready) - Find claimable work

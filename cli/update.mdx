@@ -1,0 +1,350 @@
+---
+title: 'bd update'
+description: 'Update issue fields and claim work atomically'
+---
+
+## Usage
+
+```bash
+bd update [id...] [flags]
+```
+
+## Description
+
+Update one or more issues. If no ID is provided, updates the last touched issue. The `--claim` flag provides atomic compare-and-swap semantics for claiming work.
+
+## Parameters
+
+<ParamField path="id" type="string[]">
+  Issue IDs to update. If omitted, uses the last touched issue from recent create/update/show/close.
+</ParamField>
+
+### Field Updates
+
+<ParamField path="--title" type="string">
+  Update issue title
+</ParamField>
+
+<ParamField path="--status" type="string">
+  Update status: `open`, `in_progress`, `blocked`, `deferred`, `closed`, `pinned`, `hooked`
+</ParamField>
+
+<ParamField path="--priority" type="string">
+  Update priority: 0-4 or P0-P4
+</ParamField>
+
+<ParamField path="--type" type="string">
+  Update issue type: `bug`, `feature`, `task`, `epic`, `chore`, `decision`
+</ParamField>
+
+<ParamField path="--assignee" type="string">
+  Update assignee. Use empty string to unassign.
+</ParamField>
+
+<ParamField path="--description" type="string">
+  Update description. Use `-` to read from stdin.
+</ParamField>
+
+<ParamField path="--design" type="string">
+  Update design notes
+</ParamField>
+
+<ParamField path="--acceptance" type="string">
+  Update acceptance criteria
+</ParamField>
+
+<ParamField path="--notes" type="string">
+  Replace notes field
+</ParamField>
+
+<ParamField path="--append-notes" type="string">
+  Append to notes field (cannot be used with `--notes`)
+</ParamField>
+
+<ParamField path="--estimate" type="integer">
+  Update time estimate in minutes
+</ParamField>
+
+### Labels
+
+<ParamField path="--add-label" type="string[]">
+  Add labels (repeatable). Preserves existing labels.
+</ParamField>
+
+<ParamField path="--remove-label" type="string[]">
+  Remove labels (repeatable)
+</ParamField>
+
+<ParamField path="--set-labels" type="string[]">
+  Replace all labels (repeatable)
+</ParamField>
+
+### Scheduling
+
+<ParamField path="--due" type="string">
+  Update due date. Use empty string to clear. Formats: `+6h`, `tomorrow`, `2025-01-15`
+</ParamField>
+
+<ParamField path="--defer" type="string">
+  Update defer_until. Use empty string to clear. Same formats as `--due`
+</ParamField>
+
+### Metadata
+
+<ParamField path="--metadata" type="string">
+  Replace entire metadata (JSON string or `@file.json`)
+</ParamField>
+
+<ParamField path="--set-metadata" type="string[]">
+  Set individual metadata fields (format: `key=value`, repeatable)
+</ParamField>
+
+<ParamField path="--unset-metadata" type="string[]">
+  Remove metadata fields (repeatable)
+</ParamField>
+
+### Atomic Operations
+
+<ParamField path="--claim" type="boolean">
+  Atomically claim the issue (sets assignee to you, status to `in_progress`). Fails if already claimed.
+</ParamField>
+
+<ParamField path="--parent" type="string">
+  Reparent the issue. Use empty string to remove parent.
+</ParamField>
+
+<ParamField path="--ephemeral" type="boolean">
+  Mark issue as ephemeral (wisp)
+</ParamField>
+
+<ParamField path="--persistent" type="boolean">
+  Mark issue as persistent (promote wisp to regular issue)
+</ParamField>
+
+### Output
+
+<ParamField path="--json" type="boolean">
+  Output JSON for agent use
+</ParamField>
+
+## Examples
+
+### Basic Updates
+
+<CodeGroup>
+```bash Change Status
+bd update bd-123 --status in_progress --json
+```
+
+```bash Update Priority
+bd update bd-123 --priority 0 --json
+```
+
+```bash Update Title
+bd update bd-123 --title "New title" --json
+```
+</CodeGroup>
+
+### Atomic Claim
+
+<CodeGroup>
+```bash Claim Work
+# Atomically sets assignee=you and status=in_progress
+bd update bd-123 --claim --json
+```
+
+```bash Claim Multiple
+# Fails if any issue is already claimed
+bd update bd-123 bd-124 --claim --json
+```
+</CodeGroup>
+
+### Label Management
+
+<CodeGroup>
+```bash Add Labels
+bd update bd-123 \
+  --add-label bug \
+  --add-label p1 \
+  --json
+```
+
+```bash Remove Labels
+bd update bd-123 \
+  --remove-label wontfix \
+  --json
+```
+
+```bash Replace All Labels
+bd update bd-123 \
+  --set-labels bug,critical,security \
+  --json
+```
+</CodeGroup>
+
+### Metadata Operations
+
+<CodeGroup>
+```bash Set Metadata Fields
+bd update bd-123 \
+  --set-metadata team=platform \
+  --set-metadata sprint=42 \
+  --json
+```
+
+```bash Remove Metadata
+bd update bd-123 \
+  --unset-metadata old_field \
+  --json
+```
+
+```bash Replace All Metadata
+bd update bd-123 \
+  --metadata '{"team":"platform","priority":"high"}' \
+  --json
+```
+</CodeGroup>
+
+### Time Management
+
+<CodeGroup>
+```bash Set Due Date
+bd update bd-123 --due "next friday" --json
+```
+
+```bash Clear Due Date
+bd update bd-123 --due "" --json
+```
+
+```bash Defer Task
+bd update bd-123 --defer "+2w" --json
+```
+</CodeGroup>
+
+### Append Notes
+
+<CodeGroup>
+```bash Add to Notes
+bd update bd-123 \
+  --append-notes "Additional context from investigation" \
+  --json
+```
+
+```bash Notes from Stdin
+echo "Investigation results" | \
+  bd update bd-123 --append-notes=- --json
+```
+</CodeGroup>
+
+### Reparenting
+
+<CodeGroup>
+```bash Change Parent
+bd update bd-123 --parent bd-abc --json
+```
+
+```bash Remove Parent
+bd update bd-123 --parent "" --json
+```
+</CodeGroup>
+
+### Bulk Updates
+
+<CodeGroup>
+```bash Update Multiple Issues
+bd update bd-123 bd-124 bd-125 \
+  --status open \
+  --priority 2 \
+  --json
+```
+
+```bash Last Touched Issue
+# No ID needed - uses last create/update/show/close
+bd update --status in_progress --json
+```
+</CodeGroup>
+
+## JSON Output
+
+With `--json` flag:
+
+```json
+[
+  {
+    "id": "bd-123",
+    "title": "Fix login bug",
+    "status": "in_progress",
+    "priority": 1,
+    "assignee": "agent-name",
+    "updated_at": "2025-01-15T10:35:00Z"
+  }
+]
+```
+
+## Atomic Claim Semantics
+
+The `--claim` flag uses compare-and-swap to prevent race conditions:
+
+```bash
+# Agent 1 tries to claim
+bd update bd-123 --claim --json
+# Success: {"id":"bd-123","assignee":"agent-1","status":"in_progress"}
+
+# Agent 2 tries to claim the same issue
+bd update bd-123 --claim --json  
+# Error: issue already claimed by agent-1
+```
+
+This ensures only one agent can work on an issue at a time.
+
+## Validation
+
+### Status Validation
+
+Only valid statuses are accepted:
+
+```bash
+bd update bd-123 --status invalid --json
+# Error: invalid status "invalid" (valid: open, in_progress, blocked, deferred, closed, pinned, hooked)
+```
+
+### Priority Validation
+
+Priority must be 0-4 or P0-P4:
+
+```bash
+bd update bd-123 --priority 5 --json
+# Error: priority must be 0-4 or P0-P4
+```
+
+### Metadata Key Validation
+
+Metadata keys must be alphanumeric with underscores:
+
+```bash
+bd update bd-123 --set-metadata "invalid-key=value" --json
+# Error: metadata keys must match [a-zA-Z0-9_]+
+```
+
+## Best Practices
+
+### For Agents
+
+1. **Use `--claim`** to atomically take ownership
+2. **Always use `--json`** for parsing
+3. **Update status** to reflect progress (in_progress → closed)
+4. **Append notes** to document investigation findings
+
+### For Humans
+
+1. **Use incremental label operations** (`--add-label`) to avoid data loss
+2. **Set due dates** for time-sensitive work
+3. **Update priority** as urgency changes
+4. **Add context** via `--append-notes` for future reference
+
+## Related Commands
+
+- [`bd create`](/cli/create) - Create new issues
+- [`bd show`](/cli/show) - View current state
+- [`bd close`](/cli/close) - Complete work
+- [`bd ready`](/cli/ready) - Find claimable work

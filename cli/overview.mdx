@@ -1,0 +1,131 @@
+---
+title: 'Commands Overview'
+description: 'Core CLI commands for issue management in Beads'
+---
+
+The Beads CLI provides a comprehensive set of commands for managing issues, dependencies, and workflows. All commands support `--json` output for programmatic use by agents and scripts.
+
+## Core Commands
+
+<CardGroup cols={2}>
+  <Card title="bd create" icon="plus" href="/cli/create">
+    Create new issues with rich metadata
+  </Card>
+  <Card title="bd update" icon="pen" href="/cli/update">
+    Update issue fields and claim work atomically
+  </Card>
+  <Card title="bd show" icon="eye" href="/cli/show">
+    View detailed issue information with audit trail
+  </Card>
+  <Card title="bd list" icon="list" href="/cli/list">
+    Search and filter issues with powerful queries
+  </Card>
+  <Card title="bd ready" icon="rocket" href="/cli/ready">
+    Find unblocked work ready to be started
+  </Card>
+  <Card title="bd close" icon="check" href="/cli/close">
+    Close completed issues with reason
+  </Card>
+  <Card title="bd dep" icon="link" href="/cli/dep">
+    Manage dependencies between issues
+  </Card>
+</CardGroup>
+
+## Common Patterns
+
+### Agent Workflow
+
+For AI agents, the typical workflow is:
+
+```bash
+# 1. Find available work
+bd ready --json
+
+# 2. Claim an issue atomically
+bd update bd-123 --claim --json
+
+# 3. Work on the issue
+# ...
+
+# 4. Close when complete
+bd close bd-123 --reason "Implemented feature" --json
+```
+
+### JSON Output
+
+All commands support the `--json` flag for programmatic parsing:
+
+```bash
+bd ready --json | jq -r '.[0].id'
+bd show bd-123 --json | jq '.title'
+bd list --status=open --json
+```
+
+### Cross-Rig Operations
+
+Many commands support cross-rig routing for multi-project workflows:
+
+```bash
+# Create in a different rig
+bd create "Task" --rig gastown --json
+
+# Query another rig's database
+bd ready --rig gastown --json
+bd list --rig beads --json
+```
+
+## Flag Conventions
+
+### Common Flags
+
+These flags are available across multiple commands:
+
+- `--json` - Output as JSON for agents
+- `--priority`, `-p` - Set priority (0-4 or P0-P4)
+- `--type`, `-t` - Issue type (bug, feature, task, epic, chore, decision)
+- `--assignee`, `-a` - Assign to user
+- `--label`, `-l` - Add labels (repeatable)
+
+### Time Flags
+
+Many commands support time-based scheduling:
+
+- `--due` - Set due date (e.g., `+6h`, `tomorrow`, `2025-01-15`)
+- `--defer` - Hide from ready list until date
+- `--created-after` - Filter by creation date
+- `--updated-before` - Filter by update date
+
+### Filtering Flags
+
+Powerful filtering options for `bd list` and `bd ready`:
+
+- `--status`, `-s` - Filter by status
+- `--label`, `-l` - Must have ALL labels (AND)
+- `--label-any` - Must have ANY label (OR)
+- `--parent` - Filter by parent issue
+- `--metadata-field` - Filter by custom metadata
+
+## Exit Codes
+
+All commands follow consistent exit code conventions:
+
+- `0` - Success
+- `1` - Error or no results found
+- `2` - Invalid arguments
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create Issues" icon="plus" href="/cli/create">
+    Learn how to create issues with all available options
+  </Card>
+  <Card title="Search Issues" icon="search" href="/cli/list">
+    Master the powerful filtering and search capabilities
+  </Card>
+  <Card title="Dependencies" icon="link" href="/cli/dep">
+    Understand dependency management and blocking relationships
+  </Card>
+  <Card title="Ready Work" icon="rocket" href="/cli/ready">
+    Find unblocked tasks ready to be worked on
+  </Card>
+</CardGroup>

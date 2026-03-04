@@ -1,0 +1,327 @@
+---
+title: "bd forget"
+description: "Remove a persistent memory by its key"
+---
+
+## Overview
+
+The `bd forget` command permanently deletes a stored memory from the key-value store. Use this to remove outdated, incorrect, or no longer relevant knowledge.
+
+**Added in:** v0.58.0
+
+## Syntax
+
+```bash
+bd forget <key>
+```
+
+## Arguments
+
+<ParamField path="key" type="string" required>
+  The exact key of the memory to delete. Keys are case-sensitive.
+</ParamField>
+
+## How It Works
+
+The command:
+
+1. Looks up the memory by key (`kv.memory.<key>`)
+2. Verifies it exists (fails if not found)
+3. Deletes it from the database
+4. Confirms deletion with the deleted content (truncated)
+
+The deletion is permanent and syncs via Dolt push/pull like all database changes.
+
+## Examples
+
+### Basic Deletion
+
+Remove a single memory:
+
+```bash
+bd forget test-race
+```
+
+Output:
+```
+Forgot [test-race]: always run tests with -race flag to catch concurrency bugs
+```
+
+### Long Content Confirmation
+
+When forgetting a long memory:
+
+```bash
+bd forget deployment-checklist
+```
+
+Output (truncated at 80 chars):
+```
+Forgot [deployment-checklist]: Pre-deployment checklist: 1. Run full test suite wi...
+```
+
+### Key Not Found
+
+Attempting to delete a non-existent memory:
+
+```bash
+bd forget nonexistent-key
+```
+
+Output (stderr):
+```
+No memory with key "nonexistent-key"
+```
+
+Exit code: 1
+
+## JSON Output
+
+For programmatic use:
+
+```bash
+bd forget test-race --json
+```
+
+Success output:
+```json
+{
+  "key": "test-race",
+  "deleted": "true"
+}
+```
+
+Not found output:
+```json
+{
+  "key": "nonexistent-key",
+  "found": "false"
+}
+```
+
+Exit code: 1 when not found.
+
+## Use Cases
+
+### Remove Outdated Information
+
+Clean up memories that are no longer accurate:
+
+```bash
+# Old info
+bd remember "API rate limit is 100 req/min" --key api-rate-limit
+
+# Rate limit changed
+bd forget api-rate-limit
+bd remember "API rate limit is 1000 req/min" --key api-rate-limit
+```
+
+**Note:** You can also just update by running `bd remember` with the same key. Use `forget` when you want to completely remove the memory, not replace it.
+
+### Cleanup Test Data
+
+Remove memories created during testing:
+
+```bash
+bd forget test-memory-1
+bd forget test-memory-2
+bd forget temp-note
+```
+
+### Remove Sensitive Info
+
+If you accidentally stored something sensitive:
+
+```bash
+bd forget api-key  # Delete immediately
+```
+
+<Warning>
+  This only deletes from the current database. If you've already pushed to a Dolt remote, the memory exists in git history. Use `dolt sql` to rewrite history if needed, or rotate the credential.
+</Warning>
+
+### Bulk Deletion Script
+
+Delete multiple memories at once:
+
+```bash
+#!/bin/bash
+for key in $(bd memories temp --json | jq -r 'keys[]'); do
+  bd forget "$key"
+done
+```
+
+Or delete all memories matching a pattern:
+
+```bash
+# Delete all test-* memories
+bd memories --json | jq -r 'keys[] | select(startswith("test-"))' | while read key; do
+  bd forget "$key"
+done
+```
+
+### Safe Deletion with Confirmation
+
+Verify before deleting:
+
+```bash
+# 1. Check what you're about to delete
+bd recall auth-old
+
+# 2. Confirm it's the right one
+echo "Delete this? (y/n)"
+read answer
+
+# 3. Delete if confirmed
+if [ "$answer" = "y" ]; then
+  bd forget auth-old
+fi
+```
+
+### Agent Cleanup
+
+AI agents can clean up after themselves:
+
+```bash
+# Agent stores temporary context
+bd remember "Working on feature X, needs Y" --key agent-context
+
+# Work is done, clean up
+bd forget agent-context
+```
+
+## Exit Codes
+
+- **0**: Memory deleted successfully
+- **1**: Memory key not found (nothing to delete)
+
+Use in scripts:
+
+```bash
+if bd forget old-config 2>/dev/null; then
+  echo "Cleaned up old config"
+else
+  echo "No old config to clean"
+fi
+```
+
+## Finding Keys to Delete
+
+If you don't remember the exact key:
+
+```bash
+# 1. Search for it
+bd memories staging
+# Shows: staging-api, staging-db, staging-old
+
+# 2. Delete the right one
+bd forget staging-old
+```
+
+Or list all keys:
+
+```bash
+bd memories --json | jq 'keys[]'
+```
+
+## Undo Deletion
+
+There's no built-in undo for `bd forget`, but if you have Dolt history:
+
+```bash
+# 1. Find the commit before deletion
+bd dolt log --oneline | head
+
+# 2. Check the old value
+bd dolt show <commit-hash>
+
+# 3. Re-create the memory
+bd remember "original content" --key original-key
+```
+
+Or query historical data:
+
+```bash
+bd sql "SELECT value FROM beads_config AS OF '<commit-hash>' WHERE key = 'kv.memory.old-key'"
+```
+
+## Related Commands
+
+- [`bd memories`](/cli/memories) - List all memories to find keys to delete
+- [`bd recall`](/cli/recall) - View full content before deleting
+- [`bd remember`](/cli/remember) - Store or update a memory (alternative to delete + recreate)
+
+## Tips
+
+<Tip>
+  Before deleting, recall the content to verify it's what you think:
+  ```bash
+  bd recall suspicious-key  # Check content first
+  bd forget suspicious-key  # Then delete
+  ```
+</Tip>
+
+<Tip>
+  Use descriptive keys with prefixes so you can bulk-delete by category:
+  ```bash
+  # All temp-* keys can be cleaned up together
+  bd forget temp-note-1
+  bd forget temp-note-2
+  ```
+</Tip>
+
+<Note>
+  Deletion is permanent in your local database. However, Dolt tracks all changes. If you need to recover a deleted memory, you can query historical commits.
+</Note>
+
+<Warning>
+  If you're using `bd forget` to remove sensitive data, remember that:
+  1. The data remains in Dolt history
+  2. If pushed to a remote, it's in the shared history
+  3. Use Dolt's history rewriting features if true deletion is required
+  4. Rotate compromised credentials regardless
+</Warning>
+
+## Common Patterns
+
+### Replace Instead of Delete
+
+Often you want to update, not delete:
+
+```bash
+# Don't do this:
+bd forget api-config
+bd remember "new config" --key api-config
+
+# Do this instead:
+bd remember "new config" --key api-config  # Automatically updates
+```
+
+### Safe Batch Deletion
+
+Delete multiple memories with confirmation:
+
+```bash
+for key in $(bd memories deprecated --json | jq -r 'keys[]'); do
+  echo "Delete $key?"
+  bd recall "$key"
+  read -p "Confirm (y/n): " answer
+  if [ "$answer" = "y" ]; then
+    bd forget "$key"
+  fi
+done
+```
+
+### Audit Before Delete
+
+Log deletions for audit trail:
+
+```bash
+#!/bin/bash
+KEY=$1
+CONTENT=$(bd recall "$KEY" 2>/dev/null)
+if [ $? -eq 0 ]; then
+  echo "[$(date)] Deleting $KEY: $CONTENT" >> /tmp/bd-forget.log
+  bd forget "$KEY"
+fi
+```

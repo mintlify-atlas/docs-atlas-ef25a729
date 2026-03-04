@@ -1,0 +1,315 @@
+---
+title: Frequently Asked Questions
+description: Common questions about Beads and how to use it effectively
+icon: question
+---
+
+## General Questions
+
+<AccordionGroup>
+  <Accordion title="What is bd?">
+    bd is a lightweight, git-based issue tracker designed for AI coding agents. It provides dependency-aware task management with automatic sync across machines via git.
+  </Accordion>
+
+  <Accordion title="Why not just use GitHub Issues?">
+    GitHub Issues + gh CLI can approximate some features, but fundamentally cannot replicate what AI agents need:
+
+    **Key Differentiators:**
+
+    1. **Typed Dependencies with Semantics** - bd has four types (`blocks`, `related`, `parent-child`, `discovered-from`) with different behaviors. GH only has "blocks/blocked by" links.
+
+    2. **Deterministic Ready-Work Detection** - `bd ready` computes transitive blocking offline in ~10ms, no network required. GH has no built-in "ready" concept.
+
+    3. **Git-First, Offline, Branch-Scoped Task Memory** - bd works offline, issues live on branches, hash IDs prevent collisions on merge.
+
+    4. **AI-Resolvable Conflicts & Duplicate Merge** - Automatic collision resolution, duplicate merge with dependency consolidation.
+
+    5. **Version-Controlled SQL Database** - Full SQL queries against local Dolt database with native version control.
+
+    6. **Agent-Native APIs** - Consistent `--json` on all commands, dedicated MCP server with auto workspace detection.
+
+    **When to use each:** GitHub Issues excels for human teams in web UI with cross-repo dashboards. bd excels for AI agents needing offline, git-synchronized task memory.
+
+    See [GitHub issue #125](https://github.com/steveyegge/beads/issues/125) for detailed comparison.
+  </Accordion>
+
+  <Accordion title="How is this different from Taskwarrior?">
+    Taskwarrior is excellent for personal task management, but bd is built for AI agents:
+
+    - **Explicit agent semantics**: `discovered-from` dependency type, `bd ready` for queue management
+    - **JSON-first design**: Every command has `--json` output
+    - **Git-native sync**: No sync server setup required
+    - **Dolt merge**: Cell-level merge with AI-resolvable conflicts
+    - **SQL database**: Full SQL queries against Dolt database
+  </Accordion>
+
+  <Accordion title="Can I use bd without AI agents?">
+    Absolutely! bd is a great CLI issue tracker for humans too. The `bd ready` command is useful for anyone managing dependencies. Think of it as "Taskwarrior meets git."
+  </Accordion>
+
+  <Accordion title="Is this production-ready?">
+    **Current status: Alpha (v0.9.11)**
+
+    bd is in active development and being dogfooded on real projects. The core functionality is stable and well-tested. However:
+
+    - ⚠️ **Alpha software** - No 1.0 release yet
+    - ⚠️ **API may change** - Command flags may evolve before 1.0
+    - ✅ **Safe for development** - Use for development/internal projects
+    - ✅ **Data is portable** - `bd export` produces human-readable JSONL
+    - 📈 **Rapid iteration** - Expect frequent updates
+
+    **When to use bd:**
+    - ✅ AI-assisted development workflows
+    - ✅ Internal team projects
+    - ✅ Personal productivity with dependency tracking
+
+    **When to wait:**
+    - ❌ Mission-critical production systems (wait for 1.0)
+    - ❌ Large enterprise deployments
+  </Accordion>
+</AccordionGroup>
+
+## Usage Questions
+
+<AccordionGroup>
+  <Accordion title="Why hash-based IDs? Why not sequential?">
+    **Hash IDs eliminate collisions** when multiple agents or branches create issues concurrently.
+
+    **The problem with sequential IDs:**
+    ```bash
+    # Branch A creates bd-10
+    git checkout -b feature-auth
+    bd create "Add OAuth"  # Sequential ID: bd-10
+
+    # Branch B also creates bd-10
+    git checkout -b feature-payments
+    bd create "Add Stripe"  # Collision! Same sequential ID: bd-10
+
+    # Merge conflict!
+    git merge feature-auth   # Two different issues, same ID
+    ```
+
+    **Hash IDs solve this:**
+    ```bash
+    # Branch A
+    bd create "Add OAuth"  # Hash ID: bd-a1b2 (from random UUID)
+
+    # Branch B
+    bd create "Add Stripe"  # Hash ID: bd-f14c (different UUID)
+
+    # Clean merge!
+    git merge feature-auth   # No collision, different IDs
+    ```
+
+    **Progressive length scaling:**
+    - 4 chars (0-500 issues): `bd-a1b2`
+    - 5 chars (500-1,500 issues): `bd-f14c3`
+    - 6 chars (1,500+ issues): `bd-3e7a5b`
+  </Accordion>
+
+  <Accordion title="What are hierarchical child IDs?">
+    **Hierarchical IDs** (e.g., `bd-a3f8e9.1`, `bd-a3f8e9.2`) provide human-readable structure for epics and subtasks.
+
+    **Example:**
+    ```bash
+    # Create epic
+    bd create "Auth System" -t epic -p 1  # Returns: bd-a3f8e9
+
+    # Create children (auto-numbered .1, .2, .3)
+    bd create "Login UI" -p 1       # bd-a3f8e9.1
+    bd create "Validation" -p 1     # bd-a3f8e9.2
+    bd create "Tests" -p 1          # bd-a3f8e9.3
+    ```
+
+    **Benefits:**
+    - Parent hash ensures unique namespace
+    - Sequential child IDs are human-friendly
+    - Up to 3 levels of nesting supported
+    - Clear visual grouping in issue lists
+  </Accordion>
+
+  <Accordion title="Should I run bd init or have my agent do it?">
+    **Either works!** But use the right flag:
+
+    **Humans:**
+    ```bash
+    bd init  # Interactive - prompts for git hooks
+    ```
+
+    **Agents:**
+    ```bash
+    bd init --quiet  # Non-interactive - auto-installs hooks
+    ```
+  </Accordion>
+
+  <Accordion title="Do I need to run export/import manually?">
+    **No! Dolt handles storage and versioning natively.**
+
+    All writes go directly to the Dolt database and are automatically committed to Dolt history. To sync:
+
+    ```bash
+    bd dolt push    # Push changes to Dolt remote
+    bd dolt pull    # Pull changes from Dolt remote
+    ```
+
+    The `bd import` and `bd export` commands exist for data migration and portability, not for day-to-day sync.
+  </Accordion>
+
+  <Accordion title="Can I track issues for multiple projects?">
+    **Yes! Each project is completely isolated.**
+
+    ```bash
+    cd ~/project1 && bd init --prefix proj1
+    cd ~/project2 && bd init --prefix proj2
+    ```
+
+    Each project gets its own `.beads/` directory with its own Dolt database. bd auto-discovers the correct database based on your current directory.
+
+    **Per-project Dolt servers** - Each project gets its own Dolt server (LSP model) for complete isolation.
+
+    **Limitation:** Issues cannot reference issues in other projects. Each database is isolated by design.
+  </Accordion>
+
+  <Accordion title="What happens if two agents work on the same issue?">
+    With Dolt server mode, concurrent writes are handled natively. To prevent conflicts:
+
+    - Have agents claim work with `bd update <id> --claim`
+    - Query by assignee: `bd ready --assignee agent-name`
+    - Review git diffs before merging
+
+    For true multi-agent coordination, use Dolt server mode (`bd dolt start`) which supports concurrent writes natively.
+  </Accordion>
+
+  <Accordion title="Why Dolt instead of plain files?">
+    - ✅ **Version-controlled SQL**: Full SQL queries with native version control
+    - ✅ **Cell-level merge**: Concurrent changes merge automatically at the field level
+    - ✅ **Multi-writer**: Server mode supports concurrent agents
+    - ✅ **Native branching**: Dolt branches independent of git branches
+    - ✅ **Portable**: `bd export` produces JSONL for migration
+  </Accordion>
+</AccordionGroup>
+
+## Performance Questions
+
+<AccordionGroup>
+  <Accordion title="How does bd handle scale?">
+    bd uses Dolt (a version-controlled SQL database), which handles millions of rows efficiently. For typical projects with thousands of issues:
+
+    - Commands complete in under 100ms
+    - Full-text search is instant
+    - Dependency graphs traverse quickly
+    - Dolt database stays compact with garbage collection
+
+    For extremely large projects (100k+ issues), you might want to filter exports or use multiple databases per component.
+  </Accordion>
+
+  <Accordion title="What if my database gets too large?">
+    Use compaction to remove old closed issues:
+
+    ```bash
+    # Preview what would be compacted
+    bd admin compact --dry-run --all
+
+    # Compact issues closed more than 90 days ago
+    bd admin compact --days 90
+
+    # Run Dolt garbage collection
+    cd .beads/dolt && dolt gc
+    ```
+
+    Or split your project into multiple databases:
+    ```bash
+    cd ~/project/frontend && bd init --prefix fe
+    cd ~/project/backend && bd init --prefix be
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Use Case Questions
+
+<AccordionGroup>
+  <Accordion title="Can I use bd for non-code projects?">
+    Sure! bd is just an issue tracker. Use it for:
+
+    - Writing projects (chapters as issues)
+    - Research projects (papers, experiments)
+    - Home projects (renovations with blocking tasks)
+    - Any workflow with dependencies
+
+    The agent-friendly design works for any AI-assisted workflow.
+  </Accordion>
+
+  <Accordion title="Can I use bd with multiple AI agents simultaneously?">
+    Yes! Each agent can:
+
+    1. Query ready work: `bd ready --assignee agent-name`
+    2. Assign issues: `bd update <id> --assignee agent-name`
+    3. Start work: `bd update <id> --status in_progress`
+    4. Create discovered work: `bd create "Found issue" --deps discovered-from:<parent-id>`
+    5. Sync via git commits
+
+    bd's git-based sync means agents work independently and merge their changes like developers do.
+  </Accordion>
+
+  <Accordion title="Does bd work offline?">
+    Yes! bd is designed for offline-first operation:
+
+    - All queries run against local Dolt database
+    - No network required for any commands
+    - Sync happens via git push/pull when online
+    - Full functionality available without internet
+
+    This makes bd ideal for working on planes/trains, unstable networks, air-gapped environments, and privacy-sensitive projects.
+  </Accordion>
+</AccordionGroup>
+
+## Technical Questions
+
+<AccordionGroup>
+  <Accordion title="What dependencies does bd have?">
+    bd is a single static binary with no runtime dependencies:
+
+    - **Language**: Go 1.24+
+    - **Database**: Dolt (server mode)
+    - **Optional**: Git (for version control)
+
+    That's it! No PostgreSQL, no Redis, no Docker, no node_modules.
+  </Accordion>
+
+  <Accordion title="Does bd support Windows?">
+    Yes! bd has native Windows support (v0.9.0+):
+
+    - No MSYS or MinGW required
+    - PowerShell install script
+    - Works with Windows paths and filesystem
+    - Dolt server uses TCP instead of Unix sockets
+  </Accordion>
+
+  <Accordion title="Can I use bd with git worktrees?">
+    Yes! Dolt handles worktrees natively. Use embedded mode if the Dolt server is not needed:
+
+    ```bash
+    bd dolt set mode embedded
+    bd ready
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+<AccordionGroup>
+  <Accordion title="Where can I get more help?">
+    - **Documentation**: Check out our comprehensive guides
+    - **GitHub Issues**: [Report bugs or request features](https://github.com/steveyegge/beads/issues)
+    - **GitHub Discussions**: [Ask questions](https://github.com/steveyegge/beads/discussions)
+  </Accordion>
+
+  <Accordion title="How can I contribute?">
+    Contributions are welcome! See our [Contributing Guide](/resources/contributing) for:
+
+    - Code contribution guidelines
+    - How to run tests
+    - Development workflow
+    - Issue and PR templates
+  </Accordion>
+</AccordionGroup>

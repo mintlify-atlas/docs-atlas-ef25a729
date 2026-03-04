@@ -1,0 +1,484 @@
+---
+title: bd dolt
+description: Direct Dolt database operations
+---
+
+## Overview
+
+Configure and manage Dolt database settings, server lifecycle, and version control operations. Beads uses a `dolt sql-server` that auto-starts transparently when needed.
+
+## Syntax
+
+```bash
+bd dolt <subcommand> [flags]
+```
+
+## Subcommands
+
+### Server Lifecycle
+
+#### start
+
+Start the Dolt SQL server for this project:
+
+```bash
+bd dolt start
+```
+
+The server runs in the background on a per-project port derived from the project path. PID and logs are stored in `.beads/`.
+
+#### stop
+
+Stop the Dolt SQL server:
+
+```bash
+bd dolt stop
+bd dolt stop --force  # Force stop even under Gas Town daemon
+```
+
+#### status
+
+Show Dolt server status:
+
+```bash
+bd dolt status
+bd dolt status --json
+```
+
+### Configuration
+
+#### show
+
+Show current Dolt configuration with connection test:
+
+```bash
+bd dolt show
+```
+
+Output:
+```
+Dolt Configuration
+==================
+  Database: beads
+  Host:     127.0.0.1
+  Port:     3307
+  User:     root
+
+  ✓ Server connection OK
+
+Remotes:
+  origin         https://doltremoteapi.dolthub.com/user/repo
+
+Config sources (priority order):
+  1. Environment variables (BEADS_DOLT_*)
+  2. metadata.json (local, gitignored)
+  3. config.yaml (team defaults)
+```
+
+#### set
+
+Set a configuration value:
+
+```bash
+bd dolt set <key> <value> [--update-config]
+```
+
+**Configuration Keys:**
+
+| Key | Description |
+|-----|-------------|
+| `database` | Database name (default: issue prefix or "beads") |
+| `host` | Server host (default: 127.0.0.1) |
+| `port` | Server port (auto-detected; override if needed) |
+| `user` | MySQL user (default: root) |
+| `data-dir` | Custom dolt data directory (absolute path) |
+
+**Examples:**
+
+```bash
+bd dolt set database myproject
+bd dolt set host 192.168.1.100 --update-config
+bd dolt set port 3307
+bd dolt set data-dir /home/user/.beads-dolt/myproject
+```
+
+Use `--update-config` to also write to `config.yaml` for team-wide defaults.
+
+#### test
+
+Test connection to Dolt server:
+
+```bash
+bd dolt test
+```
+
+Verifies:
+1. Server is reachable at configured host:port
+2. Connection can be established
+3. Remote connectivity (for configured remotes)
+
+### Version Control
+
+#### commit
+
+Create a Dolt commit from pending changes:
+
+```bash
+bd dolt commit                      # Auto-generated message
+bd dolt commit -m "Batch update"    # Custom message
+```
+
+Useful in batch mode when changes accumulate across multiple `bd` commands. Also needed before push operations that require a clean working set.
+
+#### push
+
+Push commits to Dolt remote:
+
+```bash
+bd dolt push
+bd dolt push --force  # Overwrite remote changes
+```
+
+For Hosted Dolt, set `DOLT_REMOTE_USER` and `DOLT_REMOTE_PASSWORD` environment variables.
+
+#### pull
+
+Pull commits from Dolt remote:
+
+```bash
+bd dolt pull
+```
+
+Merges remote changes into local database.
+
+### Remote Management
+
+#### remote add
+
+Add a Dolt remote (both SQL server and CLI):
+
+```bash
+bd dolt remote add <name> <url>
+```
+
+**Examples:**
+
+```bash
+# DoltHub (recommended)
+bd dolt remote add origin https://doltremoteapi.dolthub.com/user/repo
+
+# Filesystem
+bd dolt remote add backup file:///mnt/backup/beads
+
+# SSH
+bd dolt remote add origin git@github.com:user/repo.git
+```
+
+For Hosted Dolt:
+```bash
+export DOLT_REMOTE_USER=your-username
+export DOLT_REMOTE_PASSWORD=your-token
+bd dolt remote add origin https://doltremoteapi.dolthub.com/user/repo
+```
+
+#### remote list
+
+List configured Dolt remotes (SQL server + CLI):
+
+```bash
+bd dolt remote list
+bd dolt remote list --json
+```
+
+Shows remotes from both surfaces and detects discrepancies.
+
+#### remote remove
+
+Remove a Dolt remote (both SQL server and CLI):
+
+```bash
+bd dolt remote remove <name>
+bd dolt remote remove <name> --force  # Force remove despite conflicts
+```
+
+### Maintenance
+
+#### clean-databases
+
+Drop stale test/polecat databases from Dolt server:
+
+```bash
+bd dolt clean-databases
+bd dolt clean-databases --dry-run
+```
+
+Removes leftover databases from interrupted tests (prefixes: `testdb_*`, `doctest_*`, `doctortest_*`, `beads_pt*`, `beads_vr*`, `beads_t*`).
+
+#### killall
+
+Kill all orphan Dolt server processes:
+
+```bash
+bd dolt killall
+```
+
+Finds and terminates dolt sql-server processes not tracked by the canonical PID file.
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `BEADS_DOLT_DATABASE` | Override database name |
+| `BEADS_DOLT_HOST` | Override server host |
+| `BEADS_DOLT_PORT` | Override server port |
+| `BEADS_DOLT_USER` | Override MySQL user |
+| `BEADS_DOLT_PASSWORD` | MySQL password (if needed) |
+| `BEADS_DOLT_DATA_DIR` | Override data directory |
+| `DOLT_REMOTE_USER` | Remote authentication username |
+| `DOLT_REMOTE_PASSWORD` | Remote authentication token |
+
+## Configuration Precedence
+
+Settings are resolved in order:
+
+1. **Environment variables** (`BEADS_DOLT_*`) - highest priority
+2. **metadata.json** - local overrides (gitignored)
+3. **config.yaml** - team defaults (committed)
+
+## Dolt Sync Workflows
+
+### Team Collaboration
+
+**Setup (once per developer):**
+
+```bash
+# Configure remote
+bd dolt remote add origin https://doltremoteapi.dolthub.com/team/project
+
+# Set credentials
+export DOLT_REMOTE_USER=your-username
+export DOLT_REMOTE_PASSWORD=your-token
+```
+
+**Daily workflow:**
+
+```bash
+# Start day: pull latest
+bd dolt pull
+
+# Work on issues
+bd update bd-42 --status in_progress
+
+# Push changes
+bd dolt push
+
+# End day: ensure pushed
+bd dolt status
+```
+
+### Backup and Recovery
+
+**Setup backup remote:**
+
+```bash
+bd dolt remote add backup https://doltremoteapi.dolthub.com/user/backup
+```
+
+**Regular backups:**
+
+```bash
+# Push to backup remote
+bd dolt push backup
+
+# Verify backup
+bd dolt remote list
+```
+
+**Restore from backup:**
+
+```bash
+# Initialize new repository
+bd init
+
+# Add backup remote
+bd dolt remote add backup https://doltremoteapi.dolthub.com/user/backup
+
+# Pull from backup
+bd dolt pull backup
+```
+
+### Multi-Machine Sync
+
+**Machine A:**
+
+```bash
+# Make changes
+bd create "New feature" -t feature -p 1
+
+# Push to remote
+bd dolt push
+```
+
+**Machine B:**
+
+```bash
+# Pull changes
+bd dolt pull
+
+# Verify sync
+bd list --json
+```
+
+## Examples
+
+### View Current Configuration
+
+```bash
+bd dolt show
+```
+
+### Change Database Name
+
+```bash
+bd dolt set database myproject
+bd dolt set database myproject --update-config  # Save to config.yaml
+```
+
+### Configure Remote Access
+
+```bash
+# For remote server
+bd dolt set host 192.168.1.100 --update-config
+bd dolt set port 3307
+
+# Test connectivity
+bd dolt test
+```
+
+### Setup Custom Data Directory
+
+```bash
+# Move database to external drive
+bd dolt set data-dir /mnt/external/beads-data
+
+# Verify
+bd dolt show
+```
+
+### Batch Commit Workflow
+
+```bash
+# Configure batch mode
+bd config set dolt.auto-commit batch
+
+# Make multiple changes
+bd create "Task 1" -t task
+bd create "Task 2" -t task
+bd update bd-42 --status closed
+
+# Commit all at once
+bd dolt commit
+
+# Push
+bd dolt push
+```
+
+### Setup DoltHub Remote
+
+```bash
+# Configure credentials
+export DOLT_REMOTE_USER=myusername
+export DOLT_REMOTE_PASSWORD=my_token_abc123
+
+# Add remote
+bd dolt remote add origin https://doltremoteapi.dolthub.com/myusername/myrepo
+
+# Push initial state
+bd dolt push
+
+# Verify
+bd dolt remote list
+```
+
+### Troubleshoot Connection Issues
+
+```bash
+# Check server status
+bd dolt status
+
+# Test connection
+bd dolt test
+
+# Restart server if needed
+bd dolt stop
+bd dolt start
+
+# Verify
+bd dolt status
+```
+
+## Troubleshooting
+
+### Server Connection Failed
+
+**Cause**: Server not running or wrong port
+
+**Solution**:
+```bash
+bd dolt status         # Check if running
+bd dolt start          # Start if stopped
+bd dolt test           # Test connection
+```
+
+### Remote Not Found
+
+**Cause**: Remote registered in CLI but not SQL server
+
+**Solution**:
+```bash
+bd dolt remote list    # Check both surfaces
+bd dolt remote add origin <url>  # Re-register
+```
+
+### Push Failed: Uncommitted Changes
+
+**Cause**: Dolt requires clean working set
+
+**Solution**:
+```bash
+bd dolt commit         # Commit pending changes
+bd dolt push           # Retry push
+```
+
+### Data Directory Not Found
+
+**Cause**: Custom data-dir path doesn't exist
+
+**Solution**:
+```bash
+mkdir -p /path/to/data-dir
+bd dolt set data-dir /path/to/data-dir
+```
+
+### Orphan Server Processes
+
+**Cause**: Server crashed or PID file lost
+
+**Solution**:
+```bash
+bd dolt killall        # Kill orphan processes
+bd dolt start          # Start fresh
+```
+
+## Related Commands
+
+- [`bd init`](/cli/init) - Initialize with Dolt backend
+- [`bd backup`](/cli/backup) - Backup operations (alternative to remotes)
+- [`bd doctor`](/cli/doctor) - Health checks including Dolt connectivity
+- [`bd compact`](/cli/compact) - Includes Dolt garbage collection
+
+## See Also
+
+- [Dolt Backend Setup](/setup/dolt)
+- [Federation Guide](/guides/federation)
+- [Backup and Recovery](/guides/backup)

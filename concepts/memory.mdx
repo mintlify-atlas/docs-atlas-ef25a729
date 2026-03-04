@@ -1,0 +1,465 @@
+---
+title: Memory
+description: Persistent agent knowledge that survives sessions and account rotations
+---
+
+Beads provides a **persistent memory system** for AI agents that survives context compaction, session resets, and account rotations. Use `bd remember`, `bd recall`, `bd forget`, and `bd memories` to store knowledge that should persist across conversations.
+
+## Why Agent Memory?
+
+AI agents face a fundamental challenge: **context doesn't persist**.
+
+<CardGroup cols={2}>
+  <Card title="The Problem" icon="circle-xmark">
+    - Context compaction loses history
+    - Session resets forget decisions
+    - Account rotations start from scratch
+    - Manual notes in conversation are lost
+  </Card>
+  
+  <Card title="The Solution" icon="circle-check">
+    - Knowledge stored in database
+    - Auto-injected at session start
+    - Survives all resets
+    - Searchable and queryable
+  </Card>
+</CardGroup>
+
+## Core Commands
+
+### Store a Memory
+
+Save knowledge that should persist:
+
+<CodeGroup>
+```bash Auto-generated key
+bd remember "always run tests with -race flag"
+# Remembered [always-run-tests-with-race-flag]: always run tests...
+```
+
+```bash Custom key
+bd remember "Dolt phantom DBs hide in three places" --key dolt-phantoms
+# Remembered [dolt-phantoms]: Dolt phantom DBs hide...
+```
+
+```bash Multi-line memory
+bd remember "Auth module architecture:
+- JWT tokens not sessions
+- Refresh token rotation every 7 days
+- PKCE flow for public clients" --key auth-design
+```
+</CodeGroup>
+
+<Info>
+Keys are auto-generated from content using the first ~8 words, lowercased, with non-alphanumeric chars replaced by hyphens.
+</Info>
+
+### List All Memories
+
+View stored memories:
+
+<CodeGroup>
+```bash List all
+bd memories
+```
+
+```bash Search
+bd memories dolt         # Search for "dolt" in keys or values
+bd memories "race flag"  # Search for phrase
+```
+
+```bash JSON output
+bd memories --json
+# Returns: {"key": "value", ...}
+```
+</CodeGroup>
+
+### Retrieve a Memory
+
+Recall full content by key:
+
+<CodeGroup>
+```bash Recall
+bd recall auth-design
+# Auth module architecture:
+# - JWT tokens not sessions
+# - Refresh token rotation every 7 days
+# - PKCE flow for public clients
+```
+
+```bash JSON
+bd recall auth-design --json
+# {"key": "auth-design", "value": "...", "found": true}
+```
+</CodeGroup>
+
+### Delete a Memory
+
+Remove outdated knowledge:
+
+```bash
+bd forget dolt-phantoms
+# Forgot [dolt-phantoms]: Dolt phantom DBs hide...
+```
+
+## How Memory Works
+
+Memories are stored in the Dolt database using the key-value store:
+
+```mermaid
+graph TB
+    REMEMBER[bd remember "insight"] --> KV[Key-Value Store<br/>kv.memory.*]
+    KV --> DOLT[Dolt Database<br/>.beads/dolt/]
+    DOLT --> PRIME[bd prime<br/>auto-injects memories]
+    PRIME --> AGENT[Agent Session]
+    
+    style REMEMBER fill:#e1f5ff
+    style KV fill:#fff4e1
+    style DOLT fill:#f0f0f0
+    style PRIME fill:#e8f5e9
+    style AGENT fill:#fce4ec
+```
+
+<Steps>
+  <Step title="Store">
+    `bd remember` writes to `kv.memory.*` namespace in Dolt
+  </Step>
+  
+  <Step title="Persist">
+    Memory survives context compaction and session resets
+  </Step>
+  
+  <Step title="Auto-inject">
+    `bd prime` includes memories in workflow context
+  </Step>
+  
+  <Step title="Available">
+    Agent has access to memories in every session
+  </Step>
+</Steps>
+
+## Integration with `bd prime`
+
+Memories are automatically injected when running `bd prime`:
+
+```bash
+bd prime
+```
+
+Output includes:
+- Essential workflow rules
+- Command reference
+- **All stored memories** (auto-included)
+
+<Accordion title="Example prime output with memories">
+```markdown
+# Beads Workflow
+
+[standard workflow content...]
+
+## Persistent Memories
+
+always-run-tests-with-race-flag:
+  always run tests with -race flag
+
+auth-design:
+  Auth module architecture:
+  - JWT tokens not sessions
+  - Refresh token rotation every 7 days
+  - PKCE flow for public clients
+
+dolt-phantoms:
+  Dolt phantom DBs hide in three places:
+  1. ~/.dolt/
+  2. /tmp/dolt-*
+  3. .beads/dolt/
+```
+</Accordion>
+
+### Claude Code Integration
+
+Designed for Claude Code hooks:
+
+```yaml
+# .claude-project.json
+{
+  "hooks": {
+    "sessionStart": "bd prime",
+    "preCompact": "bd prime"
+  }
+}
+```
+
+This ensures memories are injected:
+- At session start
+- Before context compaction
+- After account rotation
+
+## Memory Patterns
+
+### Architecture Decisions
+
+Store key architectural choices:
+
+```bash
+bd remember "Database: Dolt for version control, SQLite deprecated as of v0.50" --key db-architecture
+
+bd remember "Auth: JWT with refresh token rotation, PKCE for mobile clients" --key auth-pattern
+
+bd remember "Error handling: wrap errors with context, log at boundary, never panic in production" --key error-pattern
+```
+
+### Testing Requirements
+
+```bash
+bd remember "Always run 'make test-full-cgo' for complete validation, 'make test' for quick checks" --key test-commands
+
+bd remember "CGO tests require ICU flags on macOS, use scripts/test-cgo.sh" --key cgo-testing
+```
+
+### Configuration Quirks
+
+```bash
+bd remember "Dolt auto-commit defaults: ON for embedded, OFF for server mode" --key dolt-autocommit
+
+bd remember "Server mode port 3307 to avoid MySQL conflict on 3306" --key dolt-port
+```
+
+### Deployment Details
+
+```bash
+bd remember "Staging: deploy via 'make deploy-staging', requires VPN and kubectl config" --key deploy-staging
+
+bd remember "Production deploys need approval gate from @alice and CI green on main" --key deploy-prod
+```
+
+### Debugging Techniques
+
+```bash
+bd remember "Phantom database issues: check ~/.dolt/, /tmp/dolt-*, and .beads/dolt/" --key debug-phantoms
+
+bd remember "Lock contention: use 'bd doctor' to detect, switch to server mode if persistent" --key debug-locks
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use descriptive keys">
+    Keys should be memorable and meaningful:
+    ```bash
+    # Good
+    bd remember "..." --key auth-jwt-rotation
+    
+    # Bad
+    bd remember "..." --key tmp123
+    ```
+  </Accordion>
+  
+  <Accordion title="Keep memories focused">
+    One concept per memory for easy recall:
+    ```bash
+    # Good - focused
+    bd remember "Test command: make test-full-cgo" --key test-cmd
+    bd remember "CI requires both unit and integration tests" --key ci-requirements
+    
+    # Bad - too broad
+    bd remember "Testing: use make test-full-cgo for CI which requires unit and integration tests and coverage" --key testing
+    ```
+  </Accordion>
+  
+  <Accordion title="Update, don't duplicate">
+    Use the same key to update existing memories:
+    ```bash
+    bd remember "Old info" --key topic
+    # Later...
+    bd remember "Updated info" --key topic
+    # Updated [topic]: Updated info
+    ```
+  </Accordion>
+  
+  <Accordion title="Search before creating">
+    Avoid duplicates by searching first:
+    ```bash
+    bd memories dolt  # Check existing memories
+    bd remember "New Dolt insight" --key dolt-insight
+    ```
+  </Accordion>
+  
+  <Accordion title="Clean up stale memories">
+    Remove outdated knowledge:
+    ```bash
+    bd memories  # Review all
+    bd forget old-pattern  # Remove obsolete
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Memory vs Issues
+
+Understand when to use each:
+
+| Use Memory For | Use Issues For |
+|----------------|----------------|
+| Architecture decisions | Tasks to complete |
+| Configuration details | Bugs to fix |
+| Testing procedures | Features to build |
+| Debugging techniques | Work to track |
+| Deployment steps | Dependencies to manage |
+| Common pitfalls | Status to monitor |
+
+<Info>
+**Rule of thumb**: If it's **knowledge**, use memory. If it's **work**, use an issue.
+</Info>
+
+## Storage Details
+
+Memories are stored in the key-value store with the prefix `kv.memory.*`:
+
+```sql
+-- Internal storage
+SELECT * FROM config WHERE key LIKE 'kv.memory.%';
+
+-- Returns:
+-- key: kv.memory.auth-design
+-- value: Auth module architecture...
+```
+
+<Warning>
+Direct database manipulation is not recommended. Always use `bd remember`, `bd memories`, `bd recall`, and `bd forget` commands.
+</Warning>
+
+## Backup and Migration
+
+Memories are included in Dolt commits:
+
+```bash
+# Backup
+bd dolt push  # Memories included
+
+# Restore
+bd dolt pull  # Memories restored
+
+# Export
+bd export > backup.jsonl  # Includes memories
+
+# Import
+bd import backup.jsonl  # Restores memories
+```
+
+## JSON API
+
+All memory commands support `--json` for programmatic use:
+
+<CodeGroup>
+```bash Remember
+bd remember "insight" --key test --json
+# {"key": "test", "value": "insight", "action": "remembered"}
+```
+
+```bash Memories
+bd memories --json
+# {"auth-design": "...", "dolt-phantoms": "..."}
+```
+
+```bash Recall
+bd recall test --json
+# {"key": "test", "value": "insight", "found": true}
+```
+
+```bash Forget
+bd forget test --json
+# {"key": "test", "deleted": "true"}
+```
+</CodeGroup>
+
+## Example: Multi-Session Workflow
+
+See how memory helps across sessions:
+
+<Steps>
+  <Step title="Session 1: Discovery">
+    ```bash
+    # Working on auth, discover important detail
+    bd remember "Auth tokens expire after 24h, refresh at 23h mark" --key auth-expiry
+    
+    # Session ends (context compacted)
+    ```
+  </Step>
+  
+  <Step title="Session 2: Different task">
+    ```bash
+    # New session, different work
+    bd ready  # Work on something else
+    
+    # bd prime auto-injected the auth-expiry memory
+    # Agent knows about 24h expiry without being told
+    ```
+  </Step>
+  
+  <Step title="Session 3: Account rotation">
+    ```bash
+    # Account rotated, fresh start
+    # But memories persist in database!
+    
+    bd prime  # Includes auth-expiry
+    bd recall auth-expiry  # Full details available
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Memory not showing in bd prime">
+    Verify storage:
+    ```bash
+    bd memories  # Should list your memory
+    bd recall <key>  # Verify content
+    ```
+  </Accordion>
+  
+  <Accordion title="Can't remember (write error)">
+    Check database access:
+    ```bash
+    bd doctor  # Verify database health
+    ```
+    
+    Memory commands require direct database access (not RPC mode).
+  </Accordion>
+  
+  <Accordion title="Key collision">
+    Update with same key:
+    ```bash
+    bd remember "new content" --key existing-key
+    # Updated [existing-key]: new content
+    ```
+  </Accordion>
+  
+  <Accordion title="Search not finding memory">
+    Search is case-insensitive and matches keys or values:
+    ```bash
+    bd memories auth  # Matches "auth-design" key
+    bd memories JWT   # Matches "JWT" in value
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
+    Understand the Dolt storage backend
+  </Card>
+  
+  <Card title="Workflows" icon="diagram-project" href="/concepts/workflows">
+    Learn about agent session protocols
+  </Card>
+  
+  <Card title="Prime Command" icon="rocket" href="/reference/cli/prime">
+    Deep dive into bd prime integration
+  </Card>
+  
+  <Card title="Key-Value Store" icon="database" href="/advanced/kv-store">
+    Advanced key-value store usage
+  </Card>
+</CardGroup>
